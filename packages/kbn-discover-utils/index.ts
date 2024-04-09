@@ -39,3 +39,5 @@ export {
   isNestedFieldParent,
   usePager,
 } from './src';
+
+export * from './src/services/features_registry';
