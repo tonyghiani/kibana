@@ -5,16 +5,8 @@
  * 2.0.
  */
 
-import {
-  initLogEntriesHighlightsRoute,
-  initLogEntriesSummaryHighlightsRoute,
-  initLogEntriesSummaryRoute,
-} from './routes/log_entries';
-import { initLogViewRoutes } from './routes/fields';
+import { initEcsFieldsRoutes } from './routes/fields';
 
 export const initEcsFieldsServer = (libs: EcsFieldsBackendLibs) => {
-  initLogEntriesHighlightsRoute(libs);
-  initLogEntriesSummaryRoute(libs);
-  initLogEntriesSummaryHighlightsRoute(libs);
-  initLogViewRoutes(libs);
+  initEcsFieldsRoutes(libs);
 };
