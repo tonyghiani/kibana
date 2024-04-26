@@ -6,13 +6,7 @@
  */
 
 import { CoreStart } from '@kbn/core/public';
-import {
-  LogsLocatorDefinition,
-  NodeLogsLocatorDefinition,
-  TraceLogsLocatorDefinition,
-} from '../common/locators';
-import { createLogAIAssistant } from './components/log_ai_assistant';
-import { LogViewsService } from './services/fields';
+import { EcsFieldsService } from './services/ecs_fields';
 import {
   EcsFieldsClientCoreSetup,
   EcsFieldsClientPluginClass,
@@ -21,56 +15,27 @@ import {
 } from './types';
 
 export class EcsFieldsPlugin implements EcsFieldsClientPluginClass {
-  private logViews: LogViewsService;
+  private ecsFields: EcsFieldsService;
 
   constructor() {
-    this.logViews = new LogViewsService();
+    this.ecsFields = new EcsFieldsService();
   }
 
   public setup(_: EcsFieldsClientCoreSetup, pluginsSetup: EcsFieldsClientSetupDeps) {
-    const logViews = this.logViews.setup();
+    const ecsFields = this.ecsFields.setup();
 
-    const logsLocator = pluginsSetup.share.url.locators.create(
-      new LogsLocatorDefinition(pluginsSetup.share.url.locators)
-    );
-    const nodeLogsLocator = pluginsSetup.share.url.locators.create(
-      new NodeLogsLocatorDefinition(pluginsSetup.share.url.locators)
-    );
-
-    const traceLogsLocator = pluginsSetup.share.url.locators.create(
-      new TraceLogsLocatorDefinition(pluginsSetup.share.url.locators)
-    );
-
-    const locators = {
-      logsLocator,
-      nodeLogsLocator,
-      traceLogsLocator,
-    };
-
-    return { logViews, locators };
+    return { ecsFields };
   }
 
   public start(core: CoreStart, plugins: EcsFieldsClientStartDeps) {
     const { http } = core;
-    const { data, dataViews, observabilityAIAssistant } = plugins;
 
-    const logViews = this.logViews.start({
+    const ecsFields = this.ecsFields.start({
       http,
-      dataViews,
-      search: data.search,
     });
 
-    if (!observabilityAIAssistant) {
-      return {
-        logViews,
-      };
-    }
-
-    const LogAIAssistant = createLogAIAssistant({ observabilityAIAssistant });
-
     return {
-      logViews,
-      LogAIAssistant,
+      ecsFields,
     };
   }
 

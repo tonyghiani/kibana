@@ -4542,6 +4542,10 @@
   version "0.0.0"
   uid ""
 
+"@kbn/ecs-fields-plugin@link:x-pack/plugins/ecs_fields":
+  version "0.0.0"
+  uid ""
+
 "@kbn/elastic-agent-utils@link:packages/kbn-elastic-agent-utils":
   version "0.0.0"
   uid ""

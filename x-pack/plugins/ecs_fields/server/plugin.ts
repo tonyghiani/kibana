@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { PluginInitializerContext, CoreStart, Plugin } from '@kbn/core/server';
+import { PluginInitializerContext, CoreStart, Plugin, Logger } from '@kbn/core/server';
 
 import {
   EcsFieldsPluginCoreSetup,
@@ -15,10 +15,8 @@ import {
   EcsFieldsServerPluginStartDeps,
 } from './types';
 import { initEcsFieldsServer } from './ecs_fields_server';
-import { LogViewsService } from './services/fields';
-import { KibanaFramework } from './lib/adapters/framework/kibana_framework_adapter';
-import { EcsFieldsBackendLibs } from './lib/ecs_fields_types';
-import { EcsFieldsConfig } from '../common/plugin_config';
+import { EcsFieldsService } from './services/ecs_fields';
+import { EcsFieldsBackendLibs } from './lib/shared_types';
 
 export class EcsFieldsPlugin
   implements
@@ -29,39 +27,38 @@ export class EcsFieldsPlugin
       EcsFieldsServerPluginStartDeps
     >
 {
+  private readonly logger: Logger;
   private libs!: EcsFieldsBackendLibs;
-  private logViews: LogViewsService;
+  private ecsFieldsService: EcsFieldsService;
 
-  constructor(context: PluginInitializerContext<EcsFieldsConfig>) {
-    this.logViews = new LogViewsService(this.logger.get('logViews'));
+  constructor(context: PluginInitializerContext) {
+    this.logger = context.logger.get();
+
+    this.ecsFieldsService = new EcsFieldsService();
   }
 
   public setup(core: EcsFieldsPluginCoreSetup, plugins: EcsFieldsServerPluginSetupDeps) {
-    const framework = new KibanaFramework(core, plugins);
-
-    const logViews = this.logViews.setup();
+    const ecsFields = this.ecsFieldsService.setup();
 
     this.libs = {
-      framework,
       getStartServices: () => core.getStartServices(),
+      logger: this.logger,
+      plugins,
+      router: core.http.createRouter(),
     };
 
     // Register server side APIs
     initEcsFieldsServer(this.libs);
 
     return {
-      logViews,
+      ecsFields,
     };
   }
 
   public start(core: CoreStart, plugins: EcsFieldsServerPluginStartDeps) {
-    const logViews = this.logViews.start({
-      savedObjects: core.savedObjects,
-      dataViews: plugins.dataViews,
-      elasticsearch: core.elasticsearch,
-    });
+    const ecsFields = this.ecsFieldsService.start();
 
-    return { logViews };
+    return { ecsFields };
   }
 
   public stop() {}

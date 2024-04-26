@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-import { EcsFieldsBackendLibs } from './lib/shared_types';
-import { initEcsFieldsRoutes } from './routes/ecs_fields';
+import type { IEcsFieldsClient } from './types';
 
-export const initEcsFieldsServer = (libs: EcsFieldsBackendLibs) => {
-  initEcsFieldsRoutes(libs);
-};
+export const createEcsFieldsClientMock = (): jest.Mocked<IEcsFieldsClient> => ({
+  getByName: jest.fn(),
+  find: jest.fn(),
+});

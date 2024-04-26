@@ -5,9 +5,4 @@
  * 2.0.
  */
 
-import { EcsFieldsBackendLibs } from './lib/shared_types';
-import { initEcsFieldsRoutes } from './routes/ecs_fields';
-
-export const initEcsFieldsServer = (libs: EcsFieldsBackendLibs) => {
-  initEcsFieldsRoutes(libs);
-};
+export type { TEcsFlat, EcsFieldName } from './ecs_fields/types';

@@ -5,8 +5,8 @@
  * 2.0.
  */
 
-import { IFieldsClient } from './types';
+import { IEcsFieldsClient } from './types';
 
-export class FieldsClient implements IFieldsClient {
-  constructor() {}
-}
+export const createEcsFieldsClientMock = (): jest.Mocked<IEcsFieldsClient> => ({
+  find: jest.fn(),
+});

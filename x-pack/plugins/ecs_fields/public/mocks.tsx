@@ -5,9 +5,12 @@
  * 2.0.
  */
 
+import { createEcsFieldsServiceStartMock } from './services/ecs_fields/ecs_fields_service.mock';
 import { EcsFieldsClientStartExports } from './types';
 
-export const createEcsFieldsPluginStartMock = (): jest.Mocked<EcsFieldsClientStartExports> => ({});
+export const createEcsFieldsPluginStartMock = (): jest.Mocked<EcsFieldsClientStartExports> => ({
+  ecsFields: createEcsFieldsServiceStartMock(),
+});
 
 export const _ensureTypeCompatibility = (): EcsFieldsClientStartExports =>
   createEcsFieldsPluginStartMock();

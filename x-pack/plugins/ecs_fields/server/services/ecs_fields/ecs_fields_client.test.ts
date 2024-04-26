@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import { EcsFieldsClient } from './ecs_fields_client';
+
+describe('EcsFieldsClient class', () => {
+  it('#get resolves a single ecs field', () => {
+    const ecsFieldsClient = new EcsFieldsClient();
+
+    const timestampField = ecsFieldsClient.getByName('@timestamp');
+
+    expect(timestampField.hasOwnProperty('dashed_name')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('description')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('example')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('flat_name')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('level')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('name')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('normalize')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('required')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('short')).toBeTruthy();
+    expect(timestampField.hasOwnProperty('type')).toBeTruthy();
+  });
+
+  it('#find resolves a dictionary of matching fields', async () => {
+    const ecsFieldsClient = new EcsFieldsClient();
+
+    const fields = ecsFieldsClient.find({
+      // @ts-expect-error
+      fieldNames: ['@timestamp', 'message', 'fake-field'],
+    });
+
+    expect(fields.hasOwnProperty('@timestamp')).toBeTruthy();
+    expect(fields.hasOwnProperty('message')).toBeTruthy();
+    expect(fields.hasOwnProperty('fake-field')).toBeFalsy();
+  });
+});

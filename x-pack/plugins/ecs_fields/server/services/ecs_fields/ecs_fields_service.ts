@@ -5,20 +5,20 @@
  * 2.0.
  */
 
-import { FieldsClient } from './fields_client';
-import { FieldsServiceSetup, FieldsServiceStart, FieldsServiceStartDeps } from './types';
+import { EcsFieldsClient } from './ecs_fields_client';
+import { EcsFieldsServiceSetup, EcsFieldsServiceStart } from './types';
 
-export class FieldsService {
+export class EcsFieldsService {
   constructor() {}
 
-  public setup(): FieldsServiceSetup {
+  public setup(): EcsFieldsServiceSetup {
     return {};
   }
 
-  public start({}: FieldsServiceStartDeps): FieldsServiceStart {
+  public start(): EcsFieldsServiceStart {
     return {
       getClient() {
-        return new FieldsClient();
+        return new EcsFieldsClient();
       },
     };
   }

@@ -5,9 +5,11 @@
  * 2.0.
  */
 
-import { EcsFieldsBackendLibs } from './lib/shared_types';
-import { initEcsFieldsRoutes } from './routes/ecs_fields';
+import * as rt from 'io-ts';
+import { EcsFlat } from '@elastic/ecs';
 
-export const initEcsFieldsServer = (libs: EcsFieldsBackendLibs) => {
-  initEcsFieldsRoutes(libs);
-};
+export type TEcsFlat = typeof EcsFlat;
+
+export const ecsFieldNameRT = rt.keyof(EcsFlat);
+
+export type EcsFieldName = rt.TypeOf<typeof ecsFieldNameRT>;

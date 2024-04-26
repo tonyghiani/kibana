@@ -4,10 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import { EcsFieldsBackendLibs } from '../../lib/shared_types';
+import { initFindEcsFieldsRoute } from './find_ecs_fields';
 
-import { EcsFieldsBackendLibs } from './lib/shared_types';
-import { initEcsFieldsRoutes } from './routes/ecs_fields';
-
-export const initEcsFieldsServer = (libs: EcsFieldsBackendLibs) => {
-  initEcsFieldsRoutes(libs);
+export const initEcsFieldsRoutes = (libs: EcsFieldsBackendLibs) => {
+  initFindEcsFieldsRoute(libs);
 };

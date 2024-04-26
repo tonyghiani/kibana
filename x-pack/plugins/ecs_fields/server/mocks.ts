@@ -5,18 +5,23 @@
  * 2.0.
  */
 
-import { createLogViewsServiceStartMock } from './services/fields/log_views_service.mock';
+import {
+  createEcsFieldsServiceSetupMock,
+  createEcsFieldsServiceStartMock,
+} from './services/ecs_fields/ecs_fields_service.mock';
 import { EcsFieldsPluginSetup, EcsFieldsPluginStart } from './types';
 
 const createEcsFieldsSetupMock = () => {
-  const ecsFieldsSetupMock: jest.Mocked<EcsFieldsPluginSetup> = {};
+  const ecsFieldsSetupMock: jest.Mocked<EcsFieldsPluginSetup> = {
+    ecsFields: createEcsFieldsServiceSetupMock(),
+  };
 
   return ecsFieldsSetupMock;
 };
 
 const createEcsFieldsStartMock = () => {
   const ecsFieldsStartMock: jest.Mocked<EcsFieldsPluginStart> = {
-    logViews: createLogViewsServiceStartMock(),
+    ecsFields: createEcsFieldsServiceStartMock(),
   };
   return ecsFieldsStartMock;
 };

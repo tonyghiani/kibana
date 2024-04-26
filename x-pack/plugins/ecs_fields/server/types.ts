@@ -5,14 +5,9 @@
  * 2.0.
  */
 
-import type { CoreSetup, RequestHandlerContext } from '@kbn/core/server';
-import {
-  PluginSetup as DataPluginSetup,
-  PluginStart as DataPluginStart,
-} from '@kbn/data-plugin/server';
-import { PluginStart as DataViewsPluginStart } from '@kbn/data-views-plugin/server';
-import { EcsFieldsDomainLibs } from './lib/ecs_fields_types';
-import { LogViewsServiceSetup, LogViewsServiceStart } from './services/fields/types';
+import type { CoreSetup } from '@kbn/core/server';
+
+import { EcsFieldsServiceSetup, EcsFieldsServiceStart } from './services/ecs_fields/types';
 
 export type EcsFieldsPluginCoreSetup = CoreSetup<
   EcsFieldsServerPluginStartDeps,
@@ -20,29 +15,16 @@ export type EcsFieldsPluginCoreSetup = CoreSetup<
 >;
 export type EcsFieldsPluginStartServicesAccessor = EcsFieldsPluginCoreSetup['getStartServices'];
 
-export interface EcsFieldsPluginSetup extends EcsFieldsDomainLibs {
-  logViews: LogViewsServiceSetup;
-  registerUsageCollectorActions: (usageCollector: UsageCollector) => void;
+export interface EcsFieldsPluginSetup {
+  ecsFields: EcsFieldsServiceSetup;
 }
 
 export interface EcsFieldsPluginStart {
-  logViews: LogViewsServiceStart;
+  ecsFields: EcsFieldsServiceStart;
 }
 
-export interface EcsFieldsServerPluginSetupDeps {
-  data: DataPluginSetup;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface EcsFieldsServerPluginSetupDeps {}
 
-export interface EcsFieldsServerPluginStartDeps {
-  data: DataPluginStart;
-  dataViews: DataViewsPluginStart;
-}
-
-export interface UsageCollector {
-  countLogs?: () => void;
-}
-
-/**
- * @internal
- */
-export type EcsFieldsPluginRequestHandlerContext = RequestHandlerContext;
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface EcsFieldsServerPluginStartDeps {}
