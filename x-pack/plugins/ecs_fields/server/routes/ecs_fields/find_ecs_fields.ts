@@ -26,7 +26,8 @@ export const initFindEcsFieldsRoute = ({ router, getStartServices }: EcsFieldsBa
         },
       },
       async (_requestContext, request, response) => {
-        const { fieldNames } = request.query as ecsFieldsV1.FindEcsFieldsRequestQuery;
+        const { fieldNames } = request.query;
+
         const { ecsFields } = (await getStartServices())[2];
         const ecsFieldsClient = ecsFields.getClient();
 

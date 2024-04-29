@@ -5,12 +5,13 @@
  * 2.0.
  */
 
+import { jsonRt } from '@kbn/io-ts-utils';
 import * as rt from 'io-ts';
 import { ecsFieldNameRT } from '../types';
 
 export const findEcsFieldsRequestQueryRT = rt.exact(
   rt.partial({
-    fieldNames: rt.array(ecsFieldNameRT),
+    fieldNames: jsonRt.pipe(rt.array(ecsFieldNameRT)),
   })
 );
 
