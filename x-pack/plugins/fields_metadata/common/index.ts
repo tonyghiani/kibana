@@ -5,4 +5,5 @@
  * 2.0.
  */
 
-export type { TEcsFlat, EcsFieldName } from './fields_metadata/types';
+export { fieldMetadataRT } from './fields_metadata/types';
+export type { FieldName, FieldMetadata } from './fields_metadata/types';

@@ -6,13 +6,13 @@
  */
 
 import { EcsFlat } from '@elastic/ecs';
-import { EcsFieldName, TEcsFlat } from '../../../common';
+import { EcsFieldName, FieldMetadata } from '../../../common';
 import { IFieldsMetadataClient } from './types';
 
 export class FieldsMetadataClient implements IFieldsMetadataClient {
   constructor() {}
 
-  getByName<TFieldName extends EcsFieldName>(fieldName: TFieldName): TEcsFlat[TFieldName] {
+  getByName<TFieldName extends EcsFieldName>(fieldName: TFieldName): FieldMetadata[TFieldName] {
     return EcsFlat[fieldName];
   }
 
@@ -29,6 +29,6 @@ export class FieldsMetadataClient implements IFieldsMetadataClient {
       }
 
       return fieldsMetadata;
-    }, {} as Record<TFieldName, TEcsFlat[TFieldName]>);
+    }, {} as Record<TFieldName, FieldMetadata>);
   }
 }

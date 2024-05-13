@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { EcsFieldName, TEcsFlat } from '../../../common';
+import { FieldName, FieldMetadata } from '../../../common';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface FieldsMetadataServiceStartDeps {}
@@ -18,8 +18,8 @@ export interface FieldsMetadataServiceStart {
 }
 
 export interface IFieldsMetadataClient {
-  getByName<TFieldName extends EcsFieldName>(fieldName: TFieldName): TEcsFlat[TFieldName];
-  find<TFieldName extends EcsFieldName>(params: {
+  getByName<TFieldName extends FieldName>(fieldName: TFieldName): FieldMetadata[TFieldName];
+  find<TFieldName extends FieldName>(params: {
     fieldNames?: TFieldName[];
-  }): Record<TFieldName, TEcsFlat[TFieldName]>;
+  }): Record<TFieldName, FieldMetadata>;
 }

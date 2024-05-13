@@ -7,16 +7,16 @@
 
 import { jsonRt } from '@kbn/io-ts-utils';
 import * as rt from 'io-ts';
-import { ecsFieldNameRT } from '../types';
+import { ecsFlatRT, fieldMetadataRT } from '../types';
 
 export const findFieldsMetadataRequestQueryRT = rt.exact(
   rt.partial({
-    fieldNames: jsonRt.pipe(rt.array(ecsFieldNameRT)),
+    fieldNames: jsonRt.pipe(rt.array(rt.string)),
   })
 );
 
 export const findFieldsMetadataResponsePayloadRT = rt.type({
-  fields: rt.record(ecsFieldNameRT, rt.UnknownRecord),
+  fieldsMetadata: rt.record(rt.string, ecsFlatRT),
 });
 
 export type FindFieldsMetadataRequestQuery = rt.TypeOf<typeof findFieldsMetadataRequestQueryRT>;
