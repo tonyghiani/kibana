@@ -21,7 +21,6 @@ export interface IFieldsMetadataClient {
   getEcsFieldByName<TFieldName extends FieldName>(
     fieldName: TFieldName
   ): TFieldName extends EcsFieldName ? TEcsFields[TFieldName] : undefined;
-  isEcsFieldName(fieldName: FieldName): fieldName is EcsFieldName;
   // getIntegrationFieldByName(fieldName: IntegrationFieldName): IntegrationFieldMetadata | undefined;
   find<TFieldName extends FieldName>(params: {
     fieldNames?: TFieldName[];

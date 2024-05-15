@@ -6,14 +6,7 @@
  */
 
 import { EcsFlat } from '@elastic/ecs';
-import {
-  FieldName,
-  TEcsFields,
-  EcsFieldName,
-  FieldMetadata,
-  IntegrationFieldName,
-  IntegrationFieldMetadata,
-} from '../../../common';
+import { FieldName, TEcsFields, EcsFieldName, FieldMetadata } from '../../../common';
 import { IFieldsMetadataClient } from './types';
 
 export class FieldsMetadataClient implements IFieldsMetadataClient {
@@ -21,17 +14,13 @@ export class FieldsMetadataClient implements IFieldsMetadataClient {
 
   getEcsFieldByName<TFieldName extends FieldName>(fieldName: TFieldName) {
     return (
-      this.isEcsFieldName(fieldName) ? EcsFlat[fieldName] : undefined
+      fieldName in EcsFlat ? EcsFlat[fieldName] : undefined
     ) as TFieldName extends EcsFieldName ? TEcsFields[TFieldName] : undefined;
   }
 
   // getIntegrationFieldByName(fieldName: IntegrationFieldName): IntegrationFieldMetadata | undefined {
   //   return undefined;
   // }
-
-  isEcsFieldName(fieldName: FieldName): fieldName is EcsFieldName {
-    return fieldName in EcsFlat;
-  }
 
   // TODO: once TS v5 is in place, update this generic with better inference using a const parameter: https://github.com/microsoft/TypeScript/pull/51865
   find({

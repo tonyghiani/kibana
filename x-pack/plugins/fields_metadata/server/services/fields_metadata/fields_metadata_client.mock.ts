@@ -9,6 +9,5 @@ import type { IFieldsMetadataClient } from './types';
 
 export const createFieldsMetadataClientMock = (): jest.Mocked<IFieldsMetadataClient> => ({
   getEcsFieldByName: jest.fn(),
-  isEcsFieldName: jest.fn(),
   find: jest.fn(),
 });
