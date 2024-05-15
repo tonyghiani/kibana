@@ -6,29 +6,53 @@
  */
 
 import { EcsFlat } from '@elastic/ecs';
-import { EcsFieldName, FieldMetadata } from '../../../common';
+import {
+  FieldName,
+  TEcsFields,
+  EcsFieldName,
+  FieldMetadata,
+  IntegrationFieldName,
+  IntegrationFieldMetadata,
+} from '../../../common';
 import { IFieldsMetadataClient } from './types';
 
 export class FieldsMetadataClient implements IFieldsMetadataClient {
   constructor() {}
 
-  getByName<TFieldName extends EcsFieldName>(fieldName: TFieldName): FieldMetadata[TFieldName] {
-    return EcsFlat[fieldName];
+  getEcsFieldByName<TFieldName extends FieldName>(fieldName: TFieldName) {
+    return (
+      this.isEcsFieldName(fieldName) ? EcsFlat[fieldName] : undefined
+    ) as TFieldName extends EcsFieldName ? TEcsFields[TFieldName] : undefined;
   }
 
-  find<TFieldName extends EcsFieldName>({ fieldNames }: { fieldNames?: TFieldName[] }) {
-    if (!fieldNames || fieldNames.length === 0) {
+  // getIntegrationFieldByName(fieldName: IntegrationFieldName): IntegrationFieldMetadata | undefined {
+  //   return undefined;
+  // }
+
+  isEcsFieldName(fieldName: FieldName): fieldName is EcsFieldName {
+    return fieldName in EcsFlat;
+  }
+
+  // TODO: once TS v5 is in place, update this generic with better inference using a const parameter: https://github.com/microsoft/TypeScript/pull/51865
+  find({
+    fieldNames,
+  }: {
+    fieldNames?: FieldName[];
+  } = {}): Record<FieldName, FieldMetadata> | TEcsFields {
+    if (!fieldNames) {
       return EcsFlat;
     }
 
-    return fieldNames.reduce((fieldsMetadata, fieldName) => {
-      const field = this.getByName(fieldName);
+    const res = fieldNames.reduce((fieldsMetadata, fieldName) => {
+      const field = this.getEcsFieldByName(fieldName);
 
       if (field) {
         fieldsMetadata[fieldName] = field;
       }
 
       return fieldsMetadata;
-    }, {} as Record<TFieldName, FieldMetadata>);
+    }, {} as Record<FieldName, FieldMetadata>);
+
+    return res;
   }
 }

@@ -6,6 +6,7 @@
  */
 
 import { CoreStart } from '@kbn/core/public';
+import { createUseFieldsMetadataHook } from './hooks/use_fields_metadata/use_fields_metadata';
 import { FieldsMetadataService } from './services/fields_metadata';
 import {
   FieldsMetadataClientCoreSetup,
@@ -22,20 +23,21 @@ export class FieldsMetadataPlugin implements FieldsMetadataClientPluginClass {
   }
 
   public setup(_: FieldsMetadataClientCoreSetup, pluginsSetup: FieldsMetadataClientSetupDeps) {
-    const fieldsMetadata = this.fieldsMetadata.setup();
+    this.fieldsMetadata.setup();
 
-    return { fieldsMetadata };
+    return {};
   }
 
   public start(core: CoreStart, plugins: FieldsMetadataClientStartDeps) {
     const { http } = core;
 
-    const fieldsMetadata = this.fieldsMetadata.start({
-      http,
-    });
+    const { client } = this.fieldsMetadata.start({ http });
+
+    const useFieldsMetadata = createUseFieldsMetadataHook({ fieldsMetadataClient: client });
 
     return {
-      fieldsMetadata,
+      client,
+      useFieldsMetadata,
     };
   }
 

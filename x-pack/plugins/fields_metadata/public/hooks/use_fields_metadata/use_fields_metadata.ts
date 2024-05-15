@@ -5,78 +5,31 @@
  * 2.0.
  */
 
-import { useState, useEffect, useCallback, useReducer } from 'react';
-import { FindFieldsMetadataResponsePayload } from '../../../common/latest';
-import { FieldMetadata, FieldName } from '../../../common';
-import { FieldsMetadataServiceStart } from '../../services/fields_metadata';
-
-interface Error {
-  message: string;
-  // Add more properties as needed
-}
+import { useEffect } from 'react';
+import useAsyncFn from 'react-use/lib/useAsyncFn';
+import { FieldName } from '../../../common';
+import { IFieldsMetadataClient } from '../../services/fields_metadata';
 
 interface UseFieldsMetadataFactoryDeps {
-  fieldsMetadataService: FieldsMetadataServiceStart;
+  fieldsMetadataClient: IFieldsMetadataClient;
 }
 
 interface Params {
   fieldNames: FieldName[];
 }
 
-type UseFieldsMetadataState = { loading: boolean } & (
-  | {
-      fieldsMetadata: undefined;
-      error: null;
-    }
-  | {
-      fieldsMetadata: FindFieldsMetadataResponsePayload['fieldsMetadata'];
-      error: null;
-    }
-  | {
-      fieldsMetadata: undefined;
-      error: Error;
-    }
-);
-
-const initialState = {
-  error: null,
-  fieldsMetadata: undefined,
-  loading: false,
-};
-
-const reducer = (
-  prev: UseFieldsMetadataState,
-  action: Partial<UseFieldsMetadataState>
-): UseFieldsMetadataState => ({ ...prev, ...action });
-
 export const createUseFieldsMetadataHook = ({
-  fieldsMetadataService,
+  fieldsMetadataClient,
 }: UseFieldsMetadataFactoryDeps) => {
-  return ({ fieldNames }: Params): UseFieldsMetadataState => {
-    const [{ error, fieldsMetadata, loading }, setState] = useReducer(reducer, initialState);
-
-    const retrieveFieldsMetadata = useCallback(async () => {
-      setState({ loading: true });
-      try {
-        const response = await fieldsMetadataService.client.find({ fieldNames });
-
-        setState({
-          fieldsMetadata: response.fieldsMetadata,
-          error: null,
-        });
-      } catch (err) {
-        setState({
-          fieldsMetadata: undefined,
-          error: err as Error,
-        });
-      } finally {
-        setState({ loading: false });
-      }
-    }, [fieldNames]);
+  return ({ fieldNames }: Params) => {
+    const [{ error, loading, value: fieldsMetadata }, load] = useAsyncFn(
+      () => fieldsMetadataClient.find({ fieldNames }),
+      [fieldNames]
+    );
 
     useEffect(() => {
-      retrieveFieldsMetadata();
-    }, [retrieveFieldsMetadata]);
+      load();
+    }, [load]);
 
     return { fieldsMetadata, loading, error };
   };

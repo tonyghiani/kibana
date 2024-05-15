@@ -8,8 +8,6 @@
 import { EcsFlat } from '@elastic/ecs';
 import * as rt from 'io-ts';
 
-export type FieldName = string & keyof typeof EcsFlat;
-
 export const allowedValueRT = rt.intersection([
   rt.type({
     description: rt.string,
@@ -27,13 +25,7 @@ export const multiFieldRT = rt.type({
   type: rt.string,
 });
 
-function generateCodecFromObject<T extends Record<string, any>>(obj: T): rt.Type<T> {
-  return rt.type(obj);
-}
-
-export const ecsFlatRT = generateCodecFromObject(EcsFlat);
-
-export const fieldMetadataRT = rt.intersection([
+export const ecsFieldMetadataRT = rt.intersection([
   rt.type({
     dashed_name: rt.string,
     description: rt.string,
@@ -65,4 +57,26 @@ export const fieldMetadataRT = rt.intersection([
   }),
 ]);
 
-export type FieldMetadata = rt.TypeOf<typeof ecsFlatRT>;
+export const integrationFieldMetadataRT = rt.intersection([
+  rt.type({
+    name: rt.string,
+    description: rt.string,
+    type: rt.string,
+    flat_name: rt.string,
+  }),
+  rt.partial({
+    example: rt.unknown,
+  }),
+]);
+
+export const fieldMetadataRT = rt.union([ecsFieldMetadataRT, integrationFieldMetadataRT]);
+
+export type TEcsFields = typeof EcsFlat;
+export type EcsFieldName = keyof TEcsFields;
+export type IntegrationFieldName = string;
+
+export type EcsFieldMetadata = TEcsFields[EcsFieldName];
+export type IntegrationFieldMetadata = rt.TypeOf<typeof integrationFieldMetadataRT>;
+
+export type FieldName = EcsFieldName | (IntegrationFieldName & {});
+export type FieldMetadata = EcsFieldMetadata | IntegrationFieldMetadata;

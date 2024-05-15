@@ -6,4 +6,12 @@
  */
 
 export { fieldMetadataRT } from './fields_metadata/types';
-export type { FieldName, FieldMetadata } from './fields_metadata/types';
+export type {
+  EcsFieldMetadata,
+  EcsFieldName,
+  FieldMetadata,
+  FieldName,
+  IntegrationFieldMetadata,
+  IntegrationFieldName,
+  TEcsFields,
+} from './fields_metadata/types';

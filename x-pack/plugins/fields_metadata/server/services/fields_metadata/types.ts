@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { FieldName, FieldMetadata } from '../../../common';
+import { FieldName, TEcsFields, EcsFieldName, FieldMetadata } from '../../../common';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface FieldsMetadataServiceStartDeps {}
@@ -18,8 +18,12 @@ export interface FieldsMetadataServiceStart {
 }
 
 export interface IFieldsMetadataClient {
-  getByName<TFieldName extends FieldName>(fieldName: TFieldName): FieldMetadata[TFieldName];
+  getEcsFieldByName<TFieldName extends FieldName>(
+    fieldName: TFieldName
+  ): TFieldName extends EcsFieldName ? TEcsFields[TFieldName] : undefined;
+  isEcsFieldName(fieldName: FieldName): fieldName is EcsFieldName;
+  // getIntegrationFieldByName(fieldName: IntegrationFieldName): IntegrationFieldMetadata | undefined;
   find<TFieldName extends FieldName>(params: {
     fieldNames?: TFieldName[];
-  }): Record<TFieldName, FieldMetadata>;
+  }): Record<TFieldName, FieldMetadata> | TEcsFields;
 }
