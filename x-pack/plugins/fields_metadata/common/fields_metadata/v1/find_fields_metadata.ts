@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-import { jsonRt } from '@kbn/io-ts-utils';
+import { arrayToStringRt } from '@kbn/io-ts-utils';
 import * as rt from 'io-ts';
 import { fieldMetadataRT } from '../types';
 
 export const findFieldsMetadataRequestQueryRT = rt.exact(
   rt.partial({
-    fieldNames: jsonRt.pipe(rt.array(rt.string)),
+    fieldNames: arrayToStringRt.pipe(rt.array(rt.string)),
   })
 );
 
