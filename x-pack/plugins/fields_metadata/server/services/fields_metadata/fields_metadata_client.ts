@@ -6,34 +6,45 @@
  */
 
 import { EcsFlat } from '@elastic/ecs';
-import { FieldName, TEcsFields, EcsFieldName, FieldMetadata } from '../../../common';
+import { Logger } from '@kbn/core/server';
+import { FieldName, FieldMetadata, EcsFieldMetadata } from '../../../common';
+import { EcsFieldsSourceClient } from './source_clients/ecs_fields_source_client';
+import { IntegrationsFieldsSourceClient } from './source_clients/integration_fields_source_client';
 import { IFieldsMetadataClient } from './types';
 
-export class FieldsMetadataClient implements IFieldsMetadataClient {
-  constructor() {}
+interface FieldsMetadataClientDeps {
+  logger: Logger;
+  ecsFieldsSourceClient: EcsFieldsSourceClient;
+  integrationFieldsSourceClient: IntegrationsFieldsSourceClient;
+}
 
-  getEcsFieldByName<TFieldName extends FieldName>(fieldName: TFieldName) {
-    return (
-      fieldName in EcsFlat ? EcsFlat[fieldName] : undefined
-    ) as TFieldName extends EcsFieldName ? TEcsFields[TFieldName] : undefined;
+export class FieldsMetadataClient implements IFieldsMetadataClient {
+  private constructor(
+    private readonly logger: Logger,
+    private readonly ecsFieldsSourceClient: EcsFieldsSourceClient,
+    private readonly integrationFieldsSourceClient: IntegrationsFieldsSourceClient
+  ) {}
+
+  getByName<TFieldName extends FieldName>(fieldName: TFieldName): FieldMetadata | undefined {
+    this.logger.debug(`Retrieving field metadata for: ${fieldName}`);
+
+    const field = this.ecsFieldsSourceClient.getByName(fieldName);
+
+    // TODO: enable resolution for integration field
+    // if (!field) {
+    //   field = this.integrationFieldsSourceClient.getByName(fieldName);
+    // }
+
+    return field;
   }
 
-  // getIntegrationFieldByName(fieldName: IntegrationFieldName): IntegrationFieldMetadata | undefined {
-  //   return undefined;
-  // }
-
-  // TODO: once TS v5 is in place, update this generic with better inference using a const parameter: https://github.com/microsoft/TypeScript/pull/51865
-  find({
-    fieldNames,
-  }: {
-    fieldNames?: FieldName[];
-  } = {}): Record<FieldName, FieldMetadata> | TEcsFields {
+  find({ fieldNames }: { fieldNames?: FieldName[] } = {}): Record<FieldName, FieldMetadata> {
     if (!fieldNames) {
       return EcsFlat;
     }
 
     const res = fieldNames.reduce((fieldsMetadata, fieldName) => {
-      const field = this.getEcsFieldByName(fieldName);
+      const field = this.getByName(fieldName);
 
       if (field) {
         fieldsMetadata[fieldName] = field;
@@ -43,5 +54,13 @@ export class FieldsMetadataClient implements IFieldsMetadataClient {
     }, {} as Record<FieldName, FieldMetadata>);
 
     return res;
+  }
+
+  public static create({
+    logger,
+    ecsFieldsSourceClient,
+    integrationFieldsSourceClient,
+  }: FieldsMetadataClientDeps) {
+    return new FieldsMetadataClient(logger, ecsFieldsSourceClient, integrationFieldsSourceClient);
   }
 }

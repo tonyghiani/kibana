@@ -8,10 +8,10 @@
 import { FieldsMetadataClient } from './fields_metadata_client';
 
 describe('FieldsMetadataClient class', () => {
-  it('#getEcsFieldByName resolves a single ecs field', () => {
-    const fieldsMetadataClient = new FieldsMetadataClient();
+  const fieldsMetadataClient = FieldsMetadataClient.create();
 
-    const timestampField = fieldsMetadataClient.getEcsFieldByName('@timestamp');
+  it('#getByName resolves a single ecs field', () => {
+    const timestampField = fieldsMetadataClient.getByName('@timestamp');
 
     expect(timestampField.hasOwnProperty('dashed_name')).toBeTruthy();
     expect(timestampField.hasOwnProperty('description')).toBeTruthy();
@@ -26,8 +26,6 @@ describe('FieldsMetadataClient class', () => {
   });
 
   it('#find resolves a dictionary of matching fields', async () => {
-    const fieldsMetadataClient = new FieldsMetadataClient();
-
     const fields = fieldsMetadataClient.find({
       fieldNames: ['@timestamp', 'message', 'not-existing-field'],
     });

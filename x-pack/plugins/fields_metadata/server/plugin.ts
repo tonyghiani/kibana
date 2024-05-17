@@ -34,7 +34,7 @@ export class FieldsMetadataPlugin
   constructor(context: PluginInitializerContext) {
     this.logger = context.logger.get();
 
-    this.fieldsMetadataService = new FieldsMetadataService();
+    this.fieldsMetadataService = new FieldsMetadataService(this.logger);
   }
 
   public setup(core: FieldsMetadataPluginCoreSetup, plugins: FieldsMetadataServerPluginSetupDeps) {

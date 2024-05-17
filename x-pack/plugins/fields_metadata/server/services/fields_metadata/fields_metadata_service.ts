@@ -5,20 +5,39 @@
  * 2.0.
  */
 
+import { EcsFlat as ecsFields } from '@elastic/ecs';
+import { Logger } from '@kbn/core/server';
 import { FieldsMetadataClient } from './fields_metadata_client';
+import { EcsFieldsSourceClient } from './source_clients/ecs_fields_source_client';
+import { IntegrationsFieldsSourceClient } from './source_clients/integration_fields_source_client';
 import { FieldsMetadataServiceSetup, FieldsMetadataServiceStart } from './types';
 
 export class FieldsMetadataService {
-  constructor() {}
+  private packageService: any; // TODO: update types
+
+  constructor(private readonly logger: Logger) {}
 
   public setup(): FieldsMetadataServiceSetup {
-    return {};
+    return {
+      registerPackageService: (packageService) => {
+        this.packageService = packageService;
+      },
+    };
   }
 
   public start(): FieldsMetadataServiceStart {
+    const { logger, packageService } = this;
+
+    const ecsFieldsSourceClient = EcsFieldsSourceClient.create({ ecsFields });
+    const integrationFieldsSourceClient = IntegrationsFieldsSourceClient.create({ packageService });
+
     return {
       getClient() {
-        return new FieldsMetadataClient();
+        return FieldsMetadataClient.create({
+          logger,
+          ecsFieldsSourceClient,
+          integrationFieldsSourceClient,
+        });
       },
     };
   }
