@@ -7,9 +7,16 @@
 
 import React, { useMemo, useState } from 'react';
 import { i18n } from '@kbn/i18n';
-import { EuiFlexItem, EuiSpacer, EuiTab, EuiTabs, EuiText, useEuiTheme } from '@elastic/eui';
 import {
-  getAdvancedParameters,
+  EuiEmptyPrompt,
+  EuiFlexItem,
+  EuiSpacer,
+  EuiTab,
+  EuiTabs,
+  EuiText,
+  useEuiTheme,
+} from '@elastic/eui';
+import {
   IngestStreamGetResponse,
   WiredStreamGetResponse,
   isWiredStreamGetResponse,
@@ -19,6 +26,7 @@ import { ProcessorOutcomePreview } from './processor_outcome_preview';
 import { TableColumn, UseProcessingSimulatorReturn } from './hooks/use_processing_simulator';
 import { SchemaEditor } from '../schema_editor';
 import { SchemaField } from '../schema_editor/types';
+import { AssetImage } from '../../asset_image';
 
 interface SimulationPlaygroundProps {
   definition: IngestStreamGetResponse;
@@ -144,6 +152,28 @@ const DetectedFieldsEditor = ({ definition, isLoading, simulation }: DetectedFie
     return schemaFields.sort(compareFieldsByStatus);
   }, [definition, simulation]);
 
+  const hasFields = fields.length > 0;
+
+  if (!hasFields) {
+    return (
+      <EuiEmptyPrompt
+        titleSize="xs"
+        icon={<AssetImage type="noResults" />}
+        body={
+          <p>
+            {i18n.translate(
+              'xpack.streams.streamDetailView.managementTab.enrichment.simulationPlayground.detectedFields.noResults.content',
+              {
+                defaultMessage:
+                  'No fields were detected during the simulation. You can add fields manually in the Schema Editor.',
+              }
+            )}
+          </p>
+        }
+      />
+    );
+  }
+
   const unmapField = (fieldName: string) => {};
 
   const updateField = (field: SchemaField) => {};
@@ -166,6 +196,7 @@ const DetectedFieldsEditor = ({ definition, isLoading, simulation }: DetectedFie
         )}
       </EuiText>
       <SchemaEditor
+        defaultColumns={['name', 'type', 'format', 'status']}
         fields={fields}
         isLoading={isLoading}
         stream={definition.stream}
