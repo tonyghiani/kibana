@@ -1,0 +1,16 @@
+{
+  "type": "plugin",
+  "id": "@kbn/bootcamp-plugin",
+  "owner": "@elastic/obs-ux-logs-team",
+  "group": "platform",
+  "visibility": "shared",
+  "description": "Exposes services for bootcamp.",
+  "plugin": {
+    "id": "bootcamp",
+    "server": true,
+    "browser": true,
+    "configPath": ["xpack", "bootcamp"],
+    "requiredPlugins": ["fieldsMetadata"],
+    "requiredBundles": [],
+  }
+}

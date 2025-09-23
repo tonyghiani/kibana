@@ -214,6 +214,7 @@
     "@kbn/avc-banner": "link:src/platform/packages/shared/kbn-avc-banner",
     "@kbn/background-search": "link:src/platform/packages/shared/kbn-background-search",
     "@kbn/banners-plugin": "link:x-pack/platform/plugins/private/banners",
+    "@kbn/bootcamp-plugin": "link:x-pack/platform/plugins/shared/bootcamp",
     "@kbn/calculate-auto": "link:src/platform/packages/shared/kbn-calculate-auto",
     "@kbn/calculate-width-from-char-count": "link:src/platform/packages/shared/kbn-calculate-width-from-char-count",
     "@kbn/canvas-plugin": "link:x-pack/platform/plugins/private/canvas",
