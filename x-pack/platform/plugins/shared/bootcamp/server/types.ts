@@ -5,8 +5,10 @@
  * 2.0.
  */
 
-import type { CoreSetup } from '@kbn/core/server';
+import type { CoreSetup, IRouter, Logger, StartServicesAccessor } from '@kbn/core/server';
 import type { FieldsMetadataServerSetup } from '@kbn/fields-metadata-plugin/server';
+import type { FeaturesPluginSetup } from '@kbn/features-plugin/server';
+import type { ConfigType } from './config';
 
 export type BootcampPluginCoreSetup = CoreSetup<BootcampServerPluginStartDeps, BootcampServerStart>;
 export type BootcampPluginStartServicesAccessor = BootcampPluginCoreSetup['getStartServices'];
@@ -19,7 +21,17 @@ export interface BootcampServerStart {}
 
 export interface BootcampServerPluginSetupDeps {
   fieldsMetadata: FieldsMetadataServerSetup;
+  features: FeaturesPluginSetup;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface BootcampServerPluginStartDeps {}
+
+export interface BootcampBackendLibs {
+  core: BootcampPluginCoreSetup;
+  config: ConfigType;
+  getStartServices: StartServicesAccessor<BootcampServerPluginStartDeps, BootcampServerStart>;
+  router: IRouter;
+  logger: Logger;
+  plugins: BootcampServerPluginSetupDeps;
+}

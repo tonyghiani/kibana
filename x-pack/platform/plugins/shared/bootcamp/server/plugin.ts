@@ -13,7 +13,13 @@ import type {
   BootcampServerStart,
   BootcampServerPluginSetupDeps,
   BootcampServerPluginStartDeps,
+  BootcampBackendLibs,
 } from './types';
+import { registerBootcampRoutes } from './routes';
+import { dashboardSavedObjectType } from './saved_objects/dashboard_saved_object';
+import type { ConfigType } from './config';
+import { UI_SETTINGS } from '../common/ui_settings';
+import { registerBootcampFeatures } from './features';
 
 export class BootcampPlugin
   implements
@@ -25,14 +31,38 @@ export class BootcampPlugin
     >
 {
   private readonly logger: Logger;
+  private readonly config: ConfigType;
 
-  constructor(context: PluginInitializerContext) {
+  constructor(context: PluginInitializerContext<ConfigType>) {
     this.logger = context.logger.get();
+    this.config = context.config.get();
   }
 
   public setup(core: BootcampPluginCoreSetup, plugins: BootcampServerPluginSetupDeps) {
     this.logger.info('BootcampPlugin setup');
-    plugins.fieldsMetadata.registerIntegrationFieldsExtractor(() => Promise.resolve({}));
+    this.logger.info(`BootcampPlugin config: ${JSON.stringify(this.config)}`);
+
+    const libs: BootcampBackendLibs = {
+      core,
+      config: this.config,
+      logger: this.logger,
+      getStartServices: () => core.getStartServices(),
+      plugins,
+      router: core.http.createRouter(),
+    };
+
+    // Register the dashboard saved object type
+    core.savedObjects.registerType(dashboardSavedObjectType);
+
+    // Register the UI settings
+    core.uiSettings.register(UI_SETTINGS);
+
+    // Register the routes
+    registerBootcampRoutes(libs);
+
+    // Register the features
+    registerBootcampFeatures(plugins.features);
+
     return {};
   }
 

@@ -9,6 +9,8 @@ import type { PluginInitializerContext } from '@kbn/core/server';
 
 export type { BootcampServerSetup, BootcampServerStart } from './types';
 
+export { config } from './config';
+
 export async function plugin(context: PluginInitializerContext) {
   const { BootcampPlugin } = await import('./plugin');
   return new BootcampPlugin(context);
