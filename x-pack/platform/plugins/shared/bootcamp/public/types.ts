@@ -6,18 +6,23 @@
  */
 
 import type { CoreSetup, CoreStart, Plugin as PluginClass } from '@kbn/core/public';
+import type { SharePluginSetup, SharePluginStart } from '@kbn/share-plugin/public';
+import type { BootcampDashboardService } from './services/bootcamp_dashboard_service';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface BootcampPublicSetup {}
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface BootcampPublicStart {}
+export interface BootcampPublicStart {
+  dashboardService: BootcampDashboardService;
+}
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface BootcampPublicSetupDeps {}
+export interface BootcampPublicSetupDeps {
+  share: SharePluginSetup;
+}
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface BootcampPublicStartDeps {}
+export interface BootcampPublicStartDeps {
+  share: SharePluginStart;
+}
 
 export type BootcampClientCoreSetup = CoreSetup<BootcampPublicStartDeps, BootcampPublicStart>;
 export type BootcampClientCoreStart = CoreStart;

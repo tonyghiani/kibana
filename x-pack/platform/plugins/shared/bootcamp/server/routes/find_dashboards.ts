@@ -7,6 +7,7 @@
 
 import { schema } from '@kbn/config-schema';
 import type { SavedObjectsFindResult } from '@kbn/core/server';
+import type { BootcampDashboard } from '../../common/types';
 import type { BootcampBackendLibs } from '../types';
 import type { DashboardSavedObjectAttributes } from '../saved_objects/dashboard_saved_object';
 import { BOOTCAMP_DASHBOARD_SAVED_OBJECT_TYPE } from '../saved_objects/dashboard_saved_object';
@@ -66,7 +67,9 @@ export const registerFindDashboardRoute = ({ router, logger, config }: BootcampB
   );
 };
 
-const parseDashboardSO = (savedObject: SavedObjectsFindResult<DashboardSavedObjectAttributes>) => {
+const parseDashboardSO = (
+  savedObject: SavedObjectsFindResult<DashboardSavedObjectAttributes>
+): BootcampDashboard => {
   return {
     title: savedObject.attributes.title,
     description: savedObject.attributes.description,

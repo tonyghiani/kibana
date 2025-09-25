@@ -8,8 +8,10 @@
 import type { UiSettingsParams } from '@kbn/core/server';
 import { schema } from '@kbn/config-schema';
 
+export const BOOTCAMP_UI_SETTINGS_MAX_RESULTS_SIZE = 'bootcamp:max_results_size';
+
 export const UI_SETTINGS: Record<string, UiSettingsParams> = {
-  'bootcamp:max_results_size': {
+  [BOOTCAMP_UI_SETTINGS_MAX_RESULTS_SIZE]: {
     name: 'Max results size',
     value: 10,
     type: 'number',
