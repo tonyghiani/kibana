@@ -8,7 +8,8 @@
   "plugin": {
     "id": "bootcamp",
     "server": true,
-    "browser": true,
-    "requiredPlugins": ["fieldsMetadata"],
+    "browser": false,
+    "configPath":["xpack", "bootcamp"],
+    "optionalPlugins": ["features"],
   }
 }

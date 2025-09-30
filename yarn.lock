@@ -4244,6 +4244,10 @@
   version "0.0.0"
   uid ""
 
+"@kbn/bootcamp-plugin@link:x-pack/platform/plugins/shared/bootcamp":
+  version "0.0.0"
+  uid ""
+
 "@kbn/cache-cli@link:src/platform/packages/shared/kbn-cache-cli":
   version "0.0.0"
   uid ""

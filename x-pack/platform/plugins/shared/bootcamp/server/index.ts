@@ -14,6 +14,8 @@ export type {
   BootcampServerStart,
 } from './types';
 
+export { config } from './config';
+
 export async function plugin(initializerContext: PluginInitializerContext) {
   const { BootcampPlugin } = await import('./plugin');
   return new BootcampPlugin(initializerContext);

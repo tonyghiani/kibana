@@ -8,29 +8,49 @@
 import type { PluginInitializerContext, Logger, CoreStart } from '@kbn/core/server';
 import type {
   BootcampPluginCoreSetup,
+  BootcampServerLibs,
   BootcampServerPluginSetupDeps,
   BootcampServerPluginStartDeps,
   BootcampServerSetup,
   BootcampServerStart,
 } from './types';
+import { registerRoutes } from './routes';
+import { dashboardSavedObjectType } from './saved_objects/dashboard_saved_object_type';
+import type { BootcampConfig } from './config';
+import { UI_SETTINGS } from '../common/ui_settings';
+import { registerBootcampKibanaFeatures } from './features';
 
 export class BootcampPlugin {
   private readonly logger: Logger;
+  private readonly config: BootcampConfig;
 
-  constructor(initializerContext: PluginInitializerContext) {
+  constructor(initializerContext: PluginInitializerContext<BootcampConfig>) {
     this.logger = initializerContext.logger.get();
+    this.config = initializerContext.config.get();
   }
 
   public setup(
     core: BootcampPluginCoreSetup,
     plugins: BootcampServerPluginSetupDeps
   ): BootcampServerSetup {
-    this.logger.info('bootcamp: Setup');
+    // Register the UI settings
 
-    core.getStartServices().then(([coreStart, pluginsStart, startContract]) => {
-      this.logger.info('bootcamp: getStartServices');
-      startContract.logStart();
-    });
+    core.uiSettings.register(UI_SETTINGS);
+
+    // Register the dashboard saved object type
+    core.savedObjects.registerType(dashboardSavedObjectType);
+
+    const libs: BootcampServerLibs = {
+      logger: this.logger,
+      router: core.http.createRouter(),
+      config: this.config,
+    };
+
+    // Register the routes
+    registerRoutes(libs);
+
+    // Register the features
+    registerBootcampKibanaFeatures(plugins.features);
 
     return {
       logSetup: () => this.logger.info('Hello setup'),
@@ -38,8 +58,6 @@ export class BootcampPlugin {
   }
 
   public start(core: CoreStart, plugins: BootcampServerPluginStartDeps): BootcampServerStart {
-    this.logger.info('bootcamp: Start');
-
     return {
       logStart: () => this.logger.info('Hello start'),
     };

@@ -5,11 +5,9 @@
  * 2.0.
  */
 
-import type { CoreSetup } from '@kbn/core/server';
-import type {
-  FieldsMetadataServerSetup,
-  FieldsMetadataServerStart,
-} from '@kbn/fields-metadata-plugin/server';
+import type { CoreSetup, IRouter, Logger } from '@kbn/core/server';
+import type { FeaturesPluginSetup, FeaturesPluginStart } from '@kbn/features-plugin/server';
+import type { BootcampConfig } from './config';
 
 export type BootcampPluginCoreSetup = CoreSetup<BootcampServerPluginStartDeps, BootcampServerStart>;
 
@@ -22,9 +20,15 @@ export interface BootcampServerStart {
 }
 
 export interface BootcampServerPluginSetupDeps {
-  fieldsMetadata: FieldsMetadataServerSetup;
+  features?: FeaturesPluginSetup;
 }
 
 export interface BootcampServerPluginStartDeps {
-  fieldsMetadata: FieldsMetadataServerStart;
+  features?: FeaturesPluginStart;
+}
+
+export interface BootcampServerLibs {
+  logger: Logger;
+  router: IRouter;
+  config: BootcampConfig;
 }
