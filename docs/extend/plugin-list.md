@@ -116,6 +116,7 @@ mapped_pages:
 | [apmSourcesAccess](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/apm_sources_access/README.md) | Exposes services to access APM sources. |
 | [automaticImport](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/automatic_import/README.md) | Team owner: Security Integrations Scalability |
 | [banners](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/private/banners/README.md) | Allow to add a header banner that will be displayed on every page of the Kibana application |
+| [bootcamp](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/bootcamp/README.md) | WARNING: Missing or empty README. |
 | [canvas](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/private/canvas/README.md) | "Never look back. The past is done. The future is a blank canvas." ― Suzy Kassem, Rise Up and Salute the Sun |
 | [cases](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/cases/README.md) | This plugin provides cases management in Kibana |
 | [cloud](https://github.com/elastic/kibana/blob/main/x-pack/platform/plugins/shared/cloud/README.md) | The cloud plugin exposes Cloud-specific metadata to Kibana. |
