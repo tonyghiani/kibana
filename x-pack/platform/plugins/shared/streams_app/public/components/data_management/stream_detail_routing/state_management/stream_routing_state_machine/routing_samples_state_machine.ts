@@ -20,6 +20,7 @@ import type { Condition } from '@kbn/streamlang';
 import { conditionToQueryDsl, getConditionFields } from '@kbn/streamlang';
 import { getPercentageFormatter } from '../../../../../util/formatters';
 import { processCondition } from '../../utils';
+import { getAbsoluteTimestamps } from './utils';
 
 export interface RoutingSamplesMachineDeps {
   data: DataPublicPluginStart;
@@ -34,7 +35,7 @@ export type DocumentMatchFilterOptions = 'matched' | 'unmatched';
 export interface RoutingSamplesInput {
   condition?: Condition;
   definition: Streams.WiredStream.GetResponse;
-  documentMatchFilter: DocumentMatchFilterOptions;
+  documentMatchFilter?: DocumentMatchFilterOptions;
 }
 
 export interface RoutingSamplesContext {
@@ -295,12 +296,11 @@ export function createDocumentsCollectorActor({ data }: Pick<RoutingSamplesMachi
 export function createDocumentsCountCollectorActor({
   data,
 }: Pick<RoutingSamplesMachineDeps, 'data'>) {
-  return fromObservable<
-    string | undefined,
-    Pick<SearchParams, 'condition' | 'definition' | 'documentMatchFilter'>
-  >(({ input }) => {
-    return collectDocumentCounts({ data, input });
-  });
+  return fromObservable<string | undefined, Pick<SearchParams, 'condition' | 'definition'>>(
+    ({ input }) => {
+      return collectDocumentCounts({ data, input });
+    }
+  );
 }
 
 function createTimeUpdatesActor({ timeState$ }: Pick<RoutingSamplesMachineDeps, 'timeState$'>) {
@@ -406,15 +406,6 @@ const createTimestampRangeQuery = (start: number, end: number) => ({
     },
   },
 });
-
-const getAbsoluteTimestamps = (data: DataPublicPluginStart) => {
-  const time = data.query.timefilter.timefilter.getAbsoluteTime();
-
-  return {
-    start: new Date(time.from).getTime(),
-    end: new Date(time.to).getTime(),
-  };
-};
 
 /**
  * Create runtime mappings for fields that aren't mapped.

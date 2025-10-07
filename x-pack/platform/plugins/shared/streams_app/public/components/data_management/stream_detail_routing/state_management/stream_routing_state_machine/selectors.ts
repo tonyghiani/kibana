@@ -14,19 +14,19 @@ import type { RoutingSamplesContext } from './routing_samples_state_machine';
 /**
  * Selects the set of dotted fields that are not supported by the current simulation.
  */
-export const selectCurrentRule = createSelector(
+export const selectCurrentPartition = createSelector(
   [
     (context: StreamRoutingContext) => context.routing,
-    (context: StreamRoutingContext) => context.currentRuleId,
+    (context: StreamRoutingContext) => context.currentPartitionId,
   ],
-  (routing, currentRuleId) => {
-    const currentRoutingRule = routing.find((rule) => rule.id === currentRuleId);
+  (routing, currentPartitionId) => {
+    const currentPartition = routing.find((rule) => rule.id === currentPartitionId);
 
-    if (!currentRoutingRule) {
+    if (!currentPartition) {
       throw new Error('Current routing rule not found');
     }
 
-    return currentRoutingRule;
+    return currentPartition;
   }
 );
 

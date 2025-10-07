@@ -20,8 +20,6 @@ import { i18n } from '@kbn/i18n';
 import React from 'react';
 import type { Streams } from '@kbn/streams-schema';
 import { type ReviewSuggestionsInputs } from './use_review_suggestions_form';
-import { getPercentageFormatter } from '../../../../util/formatters';
-import { useTimefilter } from '../../../../hooks/use_timefilter';
 import { useMatchRate } from './use_match_rate';
 import {
   useStreamRoutingEvents,
@@ -30,7 +28,7 @@ import {
 import { SelectablePanel } from './selectable_panel';
 import { ConditionPanel } from '../../shared';
 
-const percentageFormatter = getPercentageFormatter({ precision: 2 });
+// const percentageFormatter = getPercentageFormatter({ precision: 2 });
 
 export function SuggestedStreamPanel({
   definition,
@@ -43,15 +41,14 @@ export function SuggestedStreamPanel({
   onDismiss(): void;
   onPreview(toggle: boolean): void;
 }) {
-  const { timeState } = useTimefilter();
-  const matchRate = useMatchRate(definition, partition, timeState.start, timeState.end);
+  const matchRate = useMatchRate(definition, partition);
   const selectedPreview = useStreamSamplesSelector((snapshot) => snapshot.context.selectedPreview);
   const isSelected = Boolean(
     selectedPreview &&
       selectedPreview.type === 'suggestion' &&
       selectedPreview.name === partition.name
   );
-  const { reviewSuggestedRule } = useStreamRoutingEvents();
+  const { reviewPartitionSuggestion } = useStreamRoutingEvents();
 
   return (
     <SelectablePanel paddingSize="m" isSelected={isSelected}>
@@ -72,7 +69,7 @@ export function SuggestedStreamPanel({
             </EuiFlexItem>
             <EuiFlexItem grow={false}>
               <EuiText size="s" color="success">
-                {percentageFormatter.format(matchRate.value)}
+                {matchRate.value}
               </EuiText>
             </EuiFlexItem>
           </>
@@ -88,6 +85,10 @@ export function SuggestedStreamPanel({
             isSelected={isSelected}
             size="s"
             onClick={() => onPreview(!isSelected)}
+            aria-label={i18n.translate(
+              'xpack.streams.streamDetailRouting.suggestedStreamPanel.preview',
+              { defaultMessage: 'Preview' }
+            )}
           >
             {i18n.translate('xpack.streams.streamDetailRouting.suggestedStreamPanel.preview', {
               defaultMessage: 'Preview',
@@ -97,7 +98,14 @@ export function SuggestedStreamPanel({
         <EuiFlexItem grow={false}>
           <EuiFlexGroup gutterSize="m" alignItems="center">
             <EuiFlexItem grow={false}>
-              <EuiButtonEmpty size="s" onClick={onDismiss}>
+              <EuiButtonEmpty
+                size="s"
+                onClick={onDismiss}
+                aria-label={i18n.translate(
+                  'xpack.streams.streamDetailRouting.suggestedStreamPanel.dismiss',
+                  { defaultMessage: 'Reject' }
+                )}
+              >
                 {i18n.translate('xpack.streams.streamDetailRouting.suggestedStreamPanel.dismiss', {
                   defaultMessage: 'Reject',
                 })}
@@ -107,7 +115,7 @@ export function SuggestedStreamPanel({
               <EuiButton
                 iconType="check"
                 size="s"
-                onClick={() => reviewSuggestedRule(partition.name)}
+                onClick={() => reviewPartitionSuggestion(partition.name)}
                 fill
               >
                 {i18n.translate('xpack.streams.streamDetailRouting.suggestedStreamPanel.accept', {

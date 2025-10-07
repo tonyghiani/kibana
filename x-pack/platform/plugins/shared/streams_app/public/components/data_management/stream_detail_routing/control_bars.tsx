@@ -18,12 +18,14 @@ import {
 } from './state_management/stream_routing_state_machine';
 import type { RoutingDefinitionWithUIAttributes } from './types';
 
-export const AddRoutingRuleControls = () => {
+export const AddPartitionControls = () => {
   const routingSnapshot = useStreamsRoutingSelector((snapshot) => snapshot);
   const { cancelChanges, forkStream } = useStreamRoutingEvents();
 
-  const isForking = routingSnapshot.matches({ ready: { creatingNewRule: 'forking' } });
-  const canForkRouting = routingSnapshot.can({ type: 'routingRule.fork' });
+  const isForking = routingSnapshot.matches({
+    ready: { partitions: { creatingPartition: 'forking' } },
+  });
+  const canForkRouting = routingSnapshot.can({ type: 'partition.fork' });
   const hasPrivileges = routingSnapshot.context.definition.privileges.manage;
 
   return (
@@ -40,26 +42,28 @@ export const AddRoutingRuleControls = () => {
   );
 };
 
-export const EditRoutingRuleControls = ({
-  routingRule,
+export const EditPartitionControls = ({
+  partition,
 }: {
-  routingRule: RoutingDefinitionWithUIAttributes;
+  partition: RoutingDefinitionWithUIAttributes;
 }) => {
   const routingSnapshot = useStreamsRoutingSelector((snapshot) => snapshot);
-  const { cancelChanges, removeRule, saveChanges } = useStreamRoutingEvents();
+  const { cancelChanges, removePartition, saveChanges } = useStreamRoutingEvents();
 
-  const routingRuleName = routingRule.destination;
+  const routingRuleName = partition.destination;
 
-  const isUpdating = routingSnapshot.matches({ ready: { editingRule: 'updatingRule' } });
+  const isUpdating = routingSnapshot.matches({
+    ready: { partitions: { editingPartition: 'updatingPartition' } },
+  });
 
-  const canUpdateRouting = routingSnapshot.can({ type: 'routingRule.save' });
-  const canRemoveRoutingRule = routingSnapshot.can({ type: 'routingRule.remove' });
+  const canUpdateRouting = routingSnapshot.can({ type: 'partition.save' });
+  const canRemoveRoutingRule = routingSnapshot.can({ type: 'partition.remove' });
   const hasPrivileges = routingSnapshot.context.definition.privileges.manage;
 
   return (
     <EuiFlexGroup justifyContent="spaceBetween" alignItems="center" wrap>
       <RemoveButton
-        onDelete={removeRule}
+        onDelete={removePartition}
         isDisabled={!canRemoveRoutingRule}
         streamName={routingRuleName}
       />

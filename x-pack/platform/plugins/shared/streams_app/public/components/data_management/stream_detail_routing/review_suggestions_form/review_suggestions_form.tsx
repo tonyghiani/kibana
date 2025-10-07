@@ -39,7 +39,7 @@ export function ReviewSuggestionsForm({ definition, aiFeatures }: ReviewSuggesti
     rejectSuggestion,
   } = useReviewSuggestionsFormContext();
   const ruleUnderReview = useStreamsRoutingSelector((snapshot) =>
-    snapshot.matches({ ready: 'reviewSuggestedRule' }) ? snapshot.context.suggestedRuleId : null
+    snapshot.matches({ ready: 'reviewPartitionSuggestion' }) ? snapshot.context.suggestedPartitionId : null
   );
 
   // Reset suggestions when navigating to a different stream

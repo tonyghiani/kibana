@@ -10,7 +10,7 @@ import { getPlaceholderFor } from '@kbn/xstate-utils';
 import type { Streams } from '@kbn/streams-schema';
 import { isSchema, routingDefinitionListSchema } from '@kbn/streams-schema';
 import { ALWAYS_CONDITION } from '@kbn/streamlang';
-import type { RoutingDefinition } from '@kbn/streams-schema';
+import { isEmpty } from 'lodash';
 import type {
   StreamRoutingContext,
   StreamRoutingEvent,
@@ -26,11 +26,16 @@ import {
 } from './stream_actors';
 import { routingConverter } from '../../utils';
 import type { RoutingDefinitionWithUIAttributes } from '../../types';
-import { selectCurrentRule } from './selectors';
+import { selectCurrentPartition } from './selectors';
 import {
   createRoutingSamplesMachineImplementations,
   routingSamplesMachine,
 } from './routing_samples_state_machine';
+import type { PartitionSuggestion } from './suggestions_actors';
+import {
+  createSuggestionsFailureNofitier,
+  createSuggestionsGeneratorActor,
+} from './suggestions_actors';
 
 export type StreamRoutingActorRef = ActorRefFrom<typeof streamRoutingMachine>;
 
@@ -44,14 +49,16 @@ export const streamRoutingMachine = setup({
     deleteStream: getPlaceholderFor(createDeleteStreamActor),
     forkStream: getPlaceholderFor(createForkStreamActor),
     upsertStream: getPlaceholderFor(createUpsertStreamActor),
+    generateSuggestions: getPlaceholderFor(createSuggestionsGeneratorActor),
     routingSamplesMachine: getPlaceholderFor(() => routingSamplesMachine),
   },
   actions: {
     notifyStreamSuccess: getPlaceholderFor(createStreamSuccessNofitier),
     notifyStreamFailure: getPlaceholderFor(createStreamFailureNofitier),
+    notifySuggestionsFailure: getPlaceholderFor(createSuggestionsFailureNofitier),
     refreshDefinition: () => {},
-    addNewRoutingRule: assign(({ context }) => {
-      const newRule = routingConverter.toUIDefinition({
+    addPartition: assign(({ context }) => {
+      const newPartition = routingConverter.toUIDefinition({
         destination: `${context.definition.stream.name}.child`,
         where: ALWAYS_CONDITION,
         status: 'enabled',
@@ -59,19 +66,16 @@ export const streamRoutingMachine = setup({
       });
 
       return {
-        currentRuleId: newRule.id,
-        routing: [...context.routing, newRule],
+        currentPartitionId: newPartition.id,
+        routing: [...context.routing, newPartition],
       };
     }),
-    appendRoutingRules: assign(({ context }, params: { definitions: RoutingDefinition[] }) => {
-      return {
-        routing: [...context.routing, ...params.definitions.map(routingConverter.toUIDefinition)],
-      };
-    }),
-    patchRule: assign(
-      ({ context }, params: { routingRule: Partial<RoutingDefinitionWithUIAttributes> }) => ({
-        routing: context.routing.map((rule) =>
-          rule.id === context.currentRuleId ? { ...rule, ...params.routingRule } : rule
+    patchPartition: assign(
+      ({ context }, params: { partition: Partial<RoutingDefinitionWithUIAttributes> }) => ({
+        routing: context.routing.map((partition) =>
+          partition.id === context.currentPartitionId
+            ? { ...partition, ...params.partition }
+            : partition
         ),
       })
     ),
@@ -79,7 +83,7 @@ export const streamRoutingMachine = setup({
       routing: params.routing,
     })),
     resetRoutingChanges: assign(({ context }) => ({
-      currentRuleId: null,
+      currentPartitionId: null,
       routing: context.initialRouting,
     })),
     setupRouting: assign((_, params: { definition: Streams.WiredStream.GetResponse }) => {
@@ -88,32 +92,45 @@ export const streamRoutingMachine = setup({
       );
 
       return {
-        currentRuleId: null,
+        currentPartitionId: null,
         initialRouting: routing,
         routing,
       };
     }),
-    storeCurrentRuleId: assign((_, params: { id: StreamRoutingContext['currentRuleId'] }) => ({
-      currentRuleId: params.id,
-    })),
+    storeCurrentPartitionId: assign(
+      (_, params: { id: StreamRoutingContext['currentPartitionId'] }) => ({
+        currentPartitionId: params.id,
+      })
+    ),
     storeDefinition: assign((_, params: { definition: Streams.WiredStream.GetResponse }) => ({
       definition: params.definition,
     })),
-    storeSuggestedRuleId: assign((_, params: { id: StreamRoutingContext['suggestedRuleId'] }) => ({
-      suggestedRuleId: params.id,
+    storeSuggestions: assign((_, params: { suggestions: PartitionSuggestion[] }) => ({
+      suggestions: params.suggestions,
     })),
-    resetSuggestedRuleId: assign(() => ({
-      suggestedRuleId: null,
+    removeSuggestion: assign(({ context }, params: { name: string }) => ({
+      suggestions: context.suggestions.filter((suggestion) => suggestion.name !== params.name),
+    })),
+    storeSuggestedPartitionId: assign(
+      (_, params: { id: StreamRoutingContext['suggestedPartitionId'] }) => ({
+        suggestedPartitionId: params.id,
+      })
+    ),
+    resetSuggestedPartitionId: assign(() => ({
+      suggestedPartitionId: null,
     })),
   },
   guards: {
     canForkStream: and(['hasManagePrivileges', 'isValidRouting']),
-    canReorderRules: and(['hasManagePrivileges', 'hasMultipleRoutingRules']),
+    canReorderPartitions: and(['hasManagePrivileges', 'hasMultiplePartitions']),
     canUpdateStream: and(['hasManagePrivileges', 'isValidRouting']),
-    hasMultipleRoutingRules: ({ context }) => context.routing.length > 1,
+    hasMultiplePartitions: ({ context }) => context.routing.length > 1,
     hasManagePrivileges: ({ context }) => context.definition.privileges.manage,
     hasSimulatePrivileges: ({ context }) => context.definition.privileges.simulate,
-    isAlreadyEditing: ({ context }, params: { id: string }) => context.currentRuleId === params.id,
+    hasSuggestions: (_, params: { partitions: PartitionSuggestion[] }) =>
+      !isEmpty(params.partitions),
+    isAlreadyEditing: ({ context }, params: { id: string }) =>
+      context.currentPartitionId === params.id,
     isValidRouting: ({ context }) =>
       isSchema(routingDefinitionListSchema, context.routing.map(routingConverter.toAPIDefinition)),
   },
@@ -121,11 +138,12 @@ export const streamRoutingMachine = setup({
   /** @xstate-layout N4IgpgJg5mDOIC5QCcD2BXALgSwHZQGVNkwBDAWwDo9sdSAbbALzygGIBtABgF1FQADqli1sqXPxAAPRACZZATkoA2AIwAWABwL1sgKybZG1bIA0IAJ6IAzKr2V1XLgs3WA7Jq7uFb5QF8-czQsViISCkpwiAs2WGIyKhIAYzBsADdIbj4kECERHHFJGQRVBS5ZSh9y8uU9PWtrPTdzKwRZdWVKTWVZQz0FOx7ZNz0AoIwcfDCEyLJo6gh6MDZgyagAJXQlyiTwzDAsyTzRQpzi9V1KPWUFAe1Pa2UevRbEVVLOrmv39W9DdTGIFWoXiESiFgWSxWE1Ym22kFohxyxwKEjONk09lkQ00vgMei4yk0rxKhK4lDcdzc1gGqlqdkBwKmoMScwh2EWyyZGy2YFmqGQEDAyCRgmEJzRoGKAFpVNYuuo3HYdKpCQplE5iZY3rIuOpKIpugomnpdN0AYEgTDmeFWaR5rsyGsAHJgADucL5SQAFqR8KxoSF8J6dn6UvRRblxaiim8vJouho9HLNJjk8p1CSbhUCXTGj51WprIzrYQWbN7RDHaQXe6Qz6-VAA9z6778AdeEdo2JJdI3o8lNZ1Ap3Lj2t0ta0iRVbCPDO9rJ4TCWg2XbRWHXtWK6Pbydm2m-hA2sQwjMJGUT3YyUMzm9L1hh03PpVCTKaoHNcDI0NNiRyu1mmME2R2Ld8B3VtG2bUsQwAMwFABrC9u1OKU41+FRHBpW5qWUIdM21Uk9QpDV500Ewbn-S1uSAu1Nydbc6z3eDkAQgMIHEPk8DSVAEL5FiENogBBJJMAFZD8ivdEEGpD8enKNxFMcZ8BjfYdKBpJpFEJG4mlUACQXXcFQIY8CmO2ASA2FNBkEoAR6BrFiqAE4TRPEztkRQ3tilVHwHGpLRVBGWx3jMQjtHsJofFqU03EVTQLXGVdaI3CEz1hPcG39I8W0yvYO2yMVJNQvsSkaTolQ8Wd3gSkcSVC-UPF1OpFRcPVi2o0sUuM9Lg0yg9oNXeswzACMPKKiVr0MeVXD1dV3D0lx6tNckOgUXUjC+dp5AMm0Zh6iBRD67YssPdhcpOg8Cq7YrvLeNxnEoPUCWxZQ4sVRd6rehMLmfDQuA8e9Rk65LywOo6eUuqCcpgvczwkybpLsIwHFUWbzX0Wd6pChwCwUh7XCaXa132kDeshr0Bphoa4cO89VEKqNbuvIKOieoldB6X5+n0erfiUfouA0dx3jnNxie6sm6YyqHsvO2HthIchUAyBGYyRoLOkcbp3Cedb1HqPn2hUP8Ae2g2EolsGpYhyC5ePGW+VgUhVfGpnEbQkoPgNXodF6AxdEeerfHJVVuiFgHbhMcWQcA63K0ocmQyVlXHbYDjcC43AeL4yghSWfZXLEkU3cvErikaNwunI-n4rUIKXkIkwLie75hcpf4raMm2Tz3FO0jT6yBTshzMCcvPRrAQuWRE4u1akz2TEUfy6gDnRasnN56i12bCXkWRGkMLvSYTpO93QAQIBrNOM6znO+Qv2BhUwIv3MZsu7oQSuDSCw+LnKRUFxg76EoHYU0Pg6RaHXsfYCp9pbHQfpfa+CC2BD1svZRyAoqCP2fq-Eu78vIs3kAmciGhfB-SGF9IcVxGh6QzN8PUMC6IQhIAKIUyBHawH5IKYUg1e6KzAGw4U89y79h6D7awAMCRaCHAoEkzVyRxV-v0OUdJ9Kx0MifeYrCeEcIQVwnR7C+GO1DLgcMIjP4Eh+joY0NIYqmkbq0XUQUnoAIaLoAGHQmGpW4UY-RvjeHU34U7F211PLMyRl8ckTxhw6BuAlRQyh5ENCrpRcoi40Z4UYRovasDtGCN0ZwygF8r5x1tOnTi1Bs68UQU-ZAL8Z5uXwTdD2pVA5XHXs+A+9Rky-HkUYTopR1ClEeIqL43jjKGMCRTLhJTkEkwoKg5ANkR6YOQNggQdSGm2lnm-Fp6tF6qnJLqDwHclRAMIvIR6AwMkJSVO4AIlpcCoCFPAHINEWT7IXqVWUj07nKmGWqDUr4m4t3oWUDwPhXDWHaN4mgdBGAsHwF80RbQ6RdCeEYIKQVPDDmsMkioSYyg3LRnmYGSUylaNaBNA5Py1AKiVP0QFNxgUkkXFXWcjgfAjHvOMnJCzmGQjACiz++glBqjuG1R4zwSQJQTD0P6DR1TkRjhSzReSqxgSgBBXkIrrxKnJF8LQwx9CeF6CSe8H5yIjluPoYZosJkgWrLWXcsszp6qRv7BwQxKTbVxORWVGgHANB+KmLa6i1W5MFc6xirr+KIVYB6z2IwExGsMM+Aw5RN4IG0PKOoeELiY2-AoR1cDba6vCa04oNwq4G3Ws+fM1I5FN01v5bmdqPH+H5ZLMtwT9zQygEm0qdJ5AaV9QYXwBtxzLRHBpGxdR1QE1VVaUG3de0mP7o7IdxQRgVCqvXOVcU9TY1VJUd6e94wDFLfMM+2w5nBO3YgOK9g60msbTSYOjwVBcExPofQ1JTSaGvSwgpfiZmPoQLpCkcVfC-qFsMfFTd5oGmGcaHl7hhyyGAwEvRMycOJsrbSnyki80UUUC4GkQ4kmXLId6-ouIyjOEkeSldlKNX4f8fe9V5AINxXlEpWDvLo6IacScroZR3AwphZSU0jy-BAA */
   id: 'routingStream',
   context: ({ input }) => ({
-    currentRuleId: null,
+    currentPartitionId: null,
     definition: input.definition,
     initialRouting: [],
     routing: [],
-    suggestedRuleId: null,
+    suggestedPartitionId: null,
+    suggestions: [],
   }),
   initial: 'initializing',
   states: {
@@ -134,7 +152,7 @@ export const streamRoutingMachine = setup({
     },
     ready: {
       id: 'ready',
-      initial: 'idle',
+      type: 'parallel',
       entry: [
         { type: 'setupRouting', params: ({ context }) => ({ definition: context.definition }) },
       ],
@@ -181,294 +199,363 @@ export const streamRoutingMachine = setup({
         }),
       },
       states: {
-        idle: {
-          id: 'idle',
-          on: {
-            'routingRule.create': {
-              guard: 'hasSimulatePrivileges',
-              target: 'creatingNewRule',
-            },
-            'routingRule.edit': {
-              guard: 'hasManagePrivileges',
-              target: 'editingRule',
-              actions: [{ type: 'storeCurrentRuleId', params: ({ event }) => event }],
-            },
-            'routingRule.reorder': {
-              guard: 'canReorderRules',
-              target: 'reorderingRules',
-              actions: [{ type: 'reorderRouting', params: ({ event }) => event }],
-            },
-            'routingRule.reviewSuggested': {
-              target: 'reviewSuggestedRule',
-              actions: [{ type: 'storeSuggestedRuleId', params: ({ event }) => event }],
-            },
-          },
-        },
-        creatingNewRule: {
-          id: 'creatingNewRule',
-          entry: [
-            { type: 'addNewRoutingRule' },
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.setSelectedPreview',
-              preview: { type: 'createStream' },
-            }),
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.updateCondition',
-              condition: { always: {} },
-            }),
-          ],
-          exit: [
-            { type: 'resetRoutingChanges' },
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.setSelectedPreview',
-              preview: undefined,
-            }),
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.updateCondition',
-              condition: undefined,
-            }),
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.setDocumentMatchFilter',
-              filter: 'matched',
-            }),
-          ],
-          initial: 'changing',
+        partitions: {
+          id: 'partitions',
+          initial: 'idle',
           states: {
-            changing: {
+            idle: {
+              id: 'idle',
               on: {
-                'routingRule.cancel': {
-                  target: '#idle',
-                  actions: [
-                    { type: 'resetRoutingChanges' },
-                    sendTo('routingSamplesMachine', {
-                      type: 'routingSamples.setDocumentMatchFilter',
-                      filter: 'matched',
-                    }),
-                  ],
-                },
-                'routingRule.change': {
-                  actions: enqueueActions(({ enqueue, event }) => {
-                    enqueue({ type: 'patchRule', params: { routingRule: event.routingRule } });
-
-                    // Trigger samples collection only on condition change
-                    if (event.routingRule.where) {
-                      enqueue.sendTo('routingSamplesMachine', {
-                        type: 'routingSamples.updateCondition',
-                        condition: event.routingRule.where,
-                      });
-                    }
-                  }),
-                },
-                'routingRule.edit': {
-                  guard: 'hasManagePrivileges',
-                  target: '#editingRule',
-                  actions: [{ type: 'storeCurrentRuleId', params: ({ event }) => event }],
-                },
-                'routingRule.fork': {
-                  guard: 'canForkStream',
-                  target: 'forking',
-                },
-              },
-            },
-            forking: {
-              invoke: {
-                id: 'forkStreamActor',
-                src: 'forkStream',
-                input: ({ context }) => {
-                  const currentRoutingRule = selectCurrentRule(context);
-
-                  return {
-                    definition: context.definition,
-                    where: currentRoutingRule.where,
-                    destination: currentRoutingRule.destination,
-                    status: currentRoutingRule.status,
-                  };
-                },
-                onDone: {
-                  target: '#idle',
-                  actions: [{ type: 'refreshDefinition' }],
-                },
-                onError: {
-                  target: 'changing',
-                  actions: [{ type: 'notifyStreamFailure' }],
-                },
-              },
-            },
-          },
-        },
-        editingRule: {
-          id: 'editingRule',
-          initial: 'changing',
-          entry: [
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.setSelectedPreview',
-              preview: { type: 'updateStream' },
-            }),
-          ],
-          exit: [{ type: 'resetRoutingChanges' }],
-          states: {
-            changing: {
-              on: {
-                'routingRule.create': {
+                'partition.create': {
                   guard: 'hasSimulatePrivileges',
-                  target: '#creatingNewRule',
+                  target: 'creatingPartition',
                 },
-                'routingRule.cancel': {
-                  target: '#idle',
-                  actions: [
-                    { type: 'resetRoutingChanges' },
-                    sendTo('routingSamplesMachine', {
-                      type: 'routingSamples.setDocumentMatchFilter',
-                      filter: 'matched',
-                    }),
-                  ],
-                },
-                'routingRule.change': {
-                  actions: [{ type: 'patchRule', params: ({ event }) => event }],
-                },
-                'routingRule.edit': [
-                  {
-                    guard: { type: 'isAlreadyEditing', params: ({ event }) => event },
-                    target: '#idle',
-                    actions: [{ type: 'storeCurrentRuleId', params: { id: null } }],
-                  },
-                  {
-                    actions: [{ type: 'storeCurrentRuleId', params: ({ event }) => event }],
-                  },
-                ],
-                'routingRule.remove': {
+                'partition.edit': {
                   guard: 'hasManagePrivileges',
-                  target: 'removingRule',
+                  target: 'editingPartition',
+                  actions: [{ type: 'storeCurrentPartitionId', params: ({ event }) => event }],
                 },
-                'routingRule.save': {
-                  guard: 'canUpdateStream',
-                  target: 'updatingRule',
-                },
-              },
-            },
-            removingRule: {
-              invoke: {
-                id: 'deleteStreamActor',
-                src: 'deleteStream',
-                input: ({ context }) => ({
-                  name: selectCurrentRule(context).destination,
-                }),
-                onDone: {
-                  target: '#idle',
-                  actions: [{ type: 'refreshDefinition' }],
-                },
-                onError: {
-                  target: 'changing',
-                },
-              },
-            },
-            updatingRule: {
-              invoke: {
-                id: 'upsertStreamActor',
-                src: 'upsertStream',
-                input: ({ context }) => ({
-                  definition: context.definition,
-                  routing: context.routing.map(routingConverter.toAPIDefinition),
-                }),
-                onDone: {
-                  target: '#idle',
-                  actions: [{ type: 'notifyStreamSuccess' }, { type: 'refreshDefinition' }],
-                },
-                onError: {
-                  target: 'changing',
-                  actions: [{ type: 'notifyStreamFailure' }],
-                },
-              },
-            },
-          },
-        },
-        reorderingRules: {
-          id: 'reorderingRules',
-          initial: 'reordering',
-          entry: [
-            sendTo('routingSamplesMachine', {
-              type: 'routingSamples.setSelectedPreview',
-              preview: { type: 'updateStream' },
-            }),
-          ],
-          states: {
-            reordering: {
-              on: {
-                'routingRule.reorder': {
+                'partition.reorder': {
+                  guard: 'canReorderPartitions',
+                  target: 'reorderingPartitions',
                   actions: [{ type: 'reorderRouting', params: ({ event }) => event }],
                 },
-                'routingRule.cancel': {
-                  target: '#idle',
-                  actions: [{ type: 'resetRoutingChanges' }],
+              },
+            },
+            creatingPartition: {
+              id: 'creatingPartition',
+              entry: [
+                { type: 'addPartition' },
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.setSelectedPreview',
+                  preview: { type: 'createStream' },
+                }),
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.updateCondition',
+                  condition: { always: {} },
+                }),
+              ],
+              exit: [
+                { type: 'resetRoutingChanges' },
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.setSelectedPreview',
+                  preview: undefined,
+                }),
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.updateCondition',
+                  condition: undefined,
+                }),
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.setDocumentMatchFilter',
+                  filter: 'matched',
+                }),
+              ],
+              initial: 'changing',
+              states: {
+                changing: {
+                  on: {
+                    'partition.cancel': {
+                      target: '#idle',
+                      actions: [
+                        { type: 'resetRoutingChanges' },
+                        sendTo('routingSamplesMachine', {
+                          type: 'routingSamples.setDocumentMatchFilter',
+                          filter: 'matched',
+                        }),
+                      ],
+                    },
+                    'partition.change': {
+                      actions: enqueueActions(({ enqueue, event }) => {
+                        enqueue({ type: 'patchPartition', params: { partition: event.partition } });
+
+                        // Trigger samples collection only on condition change
+                        if (event.partition.where) {
+                          enqueue.sendTo('routingSamplesMachine', {
+                            type: 'routingSamples.updateCondition',
+                            condition: event.partition.where,
+                          });
+                        }
+                      }),
+                    },
+                    'partition.edit': {
+                      guard: 'hasManagePrivileges',
+                      target: '#editingPartition',
+                      actions: [{ type: 'storeCurrentPartitionId', params: ({ event }) => event }],
+                    },
+                    'partition.fork': {
+                      guard: 'canForkStream',
+                      target: 'forking',
+                    },
+                  },
                 },
-                'routingRule.save': {
-                  guard: 'canUpdateStream',
-                  target: 'updatingStream',
+                forking: {
+                  invoke: {
+                    id: 'forkStreamActor',
+                    src: 'forkStream',
+                    input: ({ context }) => {
+                      const currentPartition = selectCurrentPartition(context);
+
+                      return {
+                        definition: context.definition,
+                        where: currentPartition.where,
+                        destination: currentPartition.destination,
+                        status: currentPartition.status,
+                      };
+                    },
+                    onDone: {
+                      target: '#idle',
+                      actions: [{ type: 'refreshDefinition' }],
+                    },
+                    onError: {
+                      target: 'changing',
+                      actions: [{ type: 'notifyStreamFailure' }],
+                    },
+                  },
                 },
               },
             },
-            updatingStream: {
-              invoke: {
-                id: 'upsertStreamActor',
-                src: 'upsertStream',
-                input: ({ context }) => ({
-                  definition: context.definition,
-                  routing: context.routing.map(routingConverter.toAPIDefinition),
+            editingPartition: {
+              id: 'editingPartition',
+              initial: 'changing',
+              entry: [
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.setSelectedPreview',
+                  preview: { type: 'updateStream' },
                 }),
-                onDone: {
-                  target: '#idle',
-                  actions: [{ type: 'notifyStreamSuccess' }, { type: 'refreshDefinition' }],
+              ],
+              exit: [{ type: 'resetRoutingChanges' }],
+              states: {
+                changing: {
+                  on: {
+                    'partition.create': {
+                      guard: 'hasSimulatePrivileges',
+                      target: '#creatingPartition',
+                    },
+                    'partition.cancel': {
+                      target: '#idle',
+                      actions: [
+                        { type: 'resetRoutingChanges' },
+                        sendTo('routingSamplesMachine', {
+                          type: 'routingSamples.setDocumentMatchFilter',
+                          filter: 'matched',
+                        }),
+                      ],
+                    },
+                    'partition.change': {
+                      actions: [{ type: 'patchPartition', params: ({ event }) => event }],
+                    },
+                    'partition.edit': [
+                      {
+                        guard: { type: 'isAlreadyEditing', params: ({ event }) => event },
+                        target: '#idle',
+                        actions: [{ type: 'storeCurrentPartitionId', params: { id: null } }],
+                      },
+                      {
+                        actions: [
+                          { type: 'storeCurrentPartitionId', params: ({ event }) => event },
+                        ],
+                      },
+                    ],
+                    'partition.remove': {
+                      guard: 'hasManagePrivileges',
+                      target: 'removingPartition',
+                    },
+                    'partition.save': {
+                      guard: 'canUpdateStream',
+                      target: 'updatingPartition',
+                    },
+                  },
                 },
-                onError: {
-                  target: 'reordering',
-                  actions: [{ type: 'notifyStreamFailure' }],
+                removingPartition: {
+                  invoke: {
+                    id: 'deleteStreamActor',
+                    src: 'deleteStream',
+                    input: ({ context }) => ({
+                      name: selectCurrentPartition(context).destination,
+                    }),
+                    onDone: {
+                      target: '#idle',
+                      actions: [{ type: 'refreshDefinition' }],
+                    },
+                    onError: {
+                      target: 'changing',
+                    },
+                  },
+                },
+                updatingPartition: {
+                  invoke: {
+                    id: 'upsertStreamActor',
+                    src: 'upsertStream',
+                    input: ({ context }) => ({
+                      definition: context.definition,
+                      routing: context.routing.map(routingConverter.toAPIDefinition),
+                    }),
+                    onDone: {
+                      target: '#idle',
+                      actions: [{ type: 'notifyStreamSuccess' }, { type: 'refreshDefinition' }],
+                    },
+                    onError: {
+                      target: 'changing',
+                      actions: [{ type: 'notifyStreamFailure' }],
+                    },
+                  },
+                },
+              },
+            },
+            reorderingPartitions: {
+              id: 'reorderingPartitions',
+              initial: 'reordering',
+              entry: [
+                sendTo('routingSamplesMachine', {
+                  type: 'routingSamples.setSelectedPreview',
+                  preview: { type: 'updateStream' },
+                }),
+              ],
+              states: {
+                reordering: {
+                  on: {
+                    'partition.reorder': {
+                      actions: [{ type: 'reorderRouting', params: ({ event }) => event }],
+                    },
+                    'partition.cancel': {
+                      target: '#idle',
+                      actions: [{ type: 'resetRoutingChanges' }],
+                    },
+                    'partition.save': {
+                      guard: 'canUpdateStream',
+                      target: 'updatingStream',
+                    },
+                  },
+                },
+                updatingStream: {
+                  invoke: {
+                    id: 'upsertStreamActor',
+                    src: 'upsertStream',
+                    input: ({ context }) => ({
+                      definition: context.definition,
+                      routing: context.routing.map(routingConverter.toAPIDefinition),
+                    }),
+                    onDone: {
+                      target: '#idle',
+                      actions: [{ type: 'notifyStreamSuccess' }, { type: 'refreshDefinition' }],
+                    },
+                    onError: {
+                      target: 'reordering',
+                      actions: [{ type: 'notifyStreamFailure' }],
+                    },
+                  },
                 },
               },
             },
           },
         },
-        reviewSuggestedRule: {
-          id: 'reviewSuggestedRule',
-          initial: 'reviewing',
+        suggestions: {
+          id: 'suggestions',
+          initial: 'hidden',
           states: {
-            reviewing: {
+            hidden: {
               on: {
-                'routingRule.fork': {
-                  guard: 'canForkStream',
-                  target: 'forking',
-                },
-                'routingRule.cancel': {
-                  target: '#idle',
-                  actions: [{ type: 'resetSuggestedRuleId' }],
+                'suggestion.generate': {
+                  target: 'loading',
                 },
               },
             },
-            forking: {
+            loading: {
               invoke: {
-                id: 'forkStreamActor',
-                src: 'forkStream',
+                id: 'generateSuggestionsActor',
+                src: 'generateSuggestions',
                 input: ({ context, event }) => {
-                  assertEvent(event, 'routingRule.fork');
-
-                  const { routingRule } = event;
-                  if (!routingRule) {
-                    throw new Error('No routing rule to fork');
-                  }
-
+                  assertEvent(event, 'suggestion.generate');
                   return {
-                    definition: context.definition,
-                    destination: routingRule.destination,
-                    where: routingRule.where,
-                    status: 'enabled',
+                    streamName: context.definition.stream.name,
+                    connectorId: event.connectorId,
                   };
                 },
-                onDone: {
-                  target: '#idle',
-                  actions: [{ type: 'refreshDefinition' }, { type: 'resetSuggestedRuleId' }],
-                },
+                onDone: [
+                  {
+                    guard: { type: 'hasSuggestions', params: ({ event }) => event.output },
+                    target: 'listingSuggestions',
+                    actions: [
+                      {
+                        type: 'storeSuggestions',
+                        params: ({ event }) => ({ suggestions: event.output.partitions }),
+                      },
+                    ],
+                  },
+                  {
+                    target: 'noSuggestions',
+                  },
+                ],
                 onError: {
-                  target: 'reviewing',
-                  actions: [{ type: 'notifyStreamFailure' }],
+                  target: 'noSuggestions',
+                  actions: [{ type: 'notifySuggestionsFailure' }],
+                },
+              },
+            },
+            listingSuggestions: {
+              id: 'listingSuggestions',
+              initial: 'reviewing',
+              states: {
+                idle: {
+                  on: {
+                    'suggestion.review': {
+                      target: 'reviewing',
+                      actions: [
+                        { type: 'storeSuggestedPartitionId', params: ({ event }) => event },
+                      ],
+                    },
+                  },
+                },
+                reviewing: {
+                  on: {
+                    'suggestion.fork': {
+                      guard: 'canForkStream',
+                      target: 'forking',
+                    },
+                    'suggestion.cancel': {
+                      target: 'idle',
+                      actions: [{ type: 'resetSuggestedPartitionId' }],
+                    },
+                  },
+                },
+                forking: {
+                  invoke: {
+                    id: 'forkStreamActor',
+                    src: 'forkStream',
+                    input: ({ context, event }) => {
+                      assertEvent(event, 'suggestion.fork');
+
+                      const { partition } = event;
+                      if (!partition) {
+                        throw new Error('No routing partition to fork');
+                      }
+
+                      return {
+                        definition: context.definition,
+                        destination: partition.destination,
+                        where: partition.where,
+                        status: 'enabled',
+                      };
+                    },
+                    onDone: {
+                      target: 'idle',
+                      actions: [
+                        { type: 'refreshDefinition' },
+                        { type: 'resetSuggestedPartitionId' },
+                      ],
+                    },
+                    onError: {
+                      target: 'reviewing',
+                      actions: [{ type: 'notifyStreamFailure' }],
+                    },
+                  },
+                },
+              },
+            },
+            noSuggestions: {
+              on: {
+                'suggestion.generate': {
+                  target: 'loading',
                 },
               },
             },
@@ -496,6 +583,10 @@ export const createStreamRoutingMachineImplementations = ({
       telemetryClient,
     }),
     upsertStream: createUpsertStreamActor({ streamsRepositoryClient }),
+    generateSuggestions: createSuggestionsGeneratorActor({
+      data,
+      streamsRepositoryClient,
+    }),
     routingSamplesMachine: routingSamplesMachine.provide(
       createRoutingSamplesMachineImplementations({
         data,
@@ -509,6 +600,9 @@ export const createStreamRoutingMachineImplementations = ({
       toasts: core.notifications.toasts,
     }),
     notifyStreamFailure: createStreamFailureNofitier({
+      toasts: core.notifications.toasts,
+    }),
+    notifySuggestionsFailure: createSuggestionsFailureNofitier({
       toasts: core.notifications.toasts,
     }),
   },

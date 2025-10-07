@@ -77,8 +77,8 @@ export function StreamDetailRoutingImpl() {
   const definition = routingSnapshot.context.definition;
 
   const shouldDisplayBottomBar =
-    routingSnapshot.matches({ ready: { reorderingRules: 'reordering' } }) &&
-    routingSnapshot.can({ type: 'routingRule.save' });
+    routingSnapshot.matches({ ready: { partitions: { reorderingPartitions: 'reordering' } } }) &&
+    routingSnapshot.can({ type: 'partition.save' });
 
   const {
     dependencies: {
@@ -98,8 +98,8 @@ export function StreamDetailRoutingImpl() {
 
   useUnsavedChangesPrompt({
     hasUnsavedChanges:
-      routingSnapshot.can({ type: 'routingRule.save' }) ||
-      routingSnapshot.can({ type: 'routingRule.fork' }),
+      routingSnapshot.can({ type: 'partition.save' }) ||
+      routingSnapshot.can({ type: 'partition.fork' }),
     history: appParams.history,
     http: core.http,
     navigateToUrl: core.application.navigateToUrl,
@@ -177,10 +177,10 @@ export function StreamDetailRoutingImpl() {
               onCancel={cancelChanges}
               onConfirm={saveChanges}
               isLoading={routingSnapshot.matches({
-                ready: { reorderingRules: 'updatingStream' },
+                ready: { reorderingPartitions: 'updatingStream' },
               })}
-              disabled={!routingSnapshot.can({ type: 'routingRule.save' })}
-              insufficientPrivileges={!routingSnapshot.can({ type: 'routingRule.save' })}
+              disabled={!routingSnapshot.can({ type: 'partition.save' })}
+              insufficientPrivileges={!routingSnapshot.can({ type: 'partition.save' })}
             />
           </EuiFlexItem>
         )}

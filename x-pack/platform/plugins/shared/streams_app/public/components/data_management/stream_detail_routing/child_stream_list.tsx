@@ -58,15 +58,16 @@ function getReasonDisabledCreateButton(canManageRoutingRules: boolean, maxNestin
 
 export function ChildStreamList({ availableStreams }: { availableStreams: string[] }) {
   const { euiTheme } = useEuiTheme();
-  const { changeRule, createNewRule, editRule, reorderRules } = useStreamRoutingEvents();
+  const { changePartition, createPartition, editPartition, reorderPartitions } =
+    useStreamRoutingEvents();
   const routingSnapshot = useStreamsRoutingSelector((snapshot) => snapshot);
   const aiFeatures = useAIFeatures();
   const reviewSuggestionForm = useReviewSuggestionsForm();
   const { timeState } = useTimefilter();
-  const isEditMode = routingSnapshot.matches({ ready: 'editingRule' });
-  const { currentRuleId, definition, routing } = routingSnapshot.context;
-  const canCreateRoutingRules = routingSnapshot.can({ type: 'routingRule.create' });
-  const canReorderRoutingRules = routingSnapshot.can({ type: 'routingRule.reorder', routing });
+  const isEditMode = routingSnapshot.matches({ ready: { partitions: 'editingPartition' } });
+  const { currentPartitionId, definition, routing } = routingSnapshot.context;
+  const canCreateRoutingRules = routingSnapshot.can({ type: 'partition.create' });
+  const canReorderRoutingRules = routingSnapshot.can({ type: 'partition.reorder', routing });
   const canManageRoutingRules = definition.privileges.manage;
   const maxNestingLevel = getSegments(definition.stream.name).length >= MAX_NESTING_LEVEL;
   const shouldDisplayCreateButton = definition.privileges.simulate;
@@ -75,7 +76,7 @@ export function ChildStreamList({ availableStreams }: { availableStreams: string
   const handlerItemDrag: DragDropContextProps['onDragEnd'] = ({ source, destination }) => {
     if (source && destination) {
       const items = euiDragDropReorder(routing, source.index, destination.index);
-      reorderRules(items);
+      reorderPartitions(items);
     }
   };
 
@@ -124,7 +125,7 @@ export function ChildStreamList({ availableStreams }: { availableStreams: string
               <CreateButtonComponent
                 size="s"
                 data-test-subj="streamsAppStreamDetailRoutingAddRuleButton"
-                onClick={createNewRule}
+                onClick={createPartition}
                 disabled={!canCreateRoutingRules || maxNestingLevel}
               >
                 {i18n.translate('xpack.streams.streamDetailRouting.addRule', {
@@ -162,12 +163,12 @@ export function ChildStreamList({ availableStreams }: { availableStreams: string
           <EuiDragDropContext onDragEnd={handlerItemDrag}>
             <EuiDroppable droppableId="routing_children_reordering" spacing="none">
               <EuiFlexGroup direction="column" gutterSize="xs">
-                {routing.map((routingRule, pos) => (
-                  <EuiFlexItem key={routingRule.id} grow={false}>
+                {routing.map((partition, pos) => (
+                  <EuiFlexItem key={partition.id} grow={false}>
                     <EuiDraggable
                       index={pos}
                       isDragDisabled={!canReorderRoutingRules}
-                      draggableId={routingRule.id}
+                      draggableId={partition.id}
                       hasInteractiveChildren={true}
                       customDragHandle={true}
                       spacing="none"
@@ -178,23 +179,23 @@ export function ChildStreamList({ availableStreams }: { availableStreams: string
                           first={pos === 0}
                           isBeingDragged={snapshot.isDragging}
                         >
-                          {routingRule.isNew ? (
+                          {partition.isNew ? (
                             <NewRoutingStreamEntry />
-                          ) : currentRuleId === routingRule.id ? (
+                          ) : currentPartitionId === partition.id ? (
                             <EditRoutingStreamEntry
-                              onChange={changeRule}
-                              routingRule={routingRule}
+                              onChange={changePartition}
+                              partition={partition}
                             />
                           ) : (
                             <IdleRoutingStreamEntry
                               availableStreams={availableStreams}
                               draggableProvided={provided}
                               isEditingEnabled={routingSnapshot.can({
-                                type: 'routingRule.edit',
-                                id: routingRule.id,
+                                type: 'partition.edit',
+                                id: partition.id,
                               })}
-                              onEditIconClick={editRule}
-                              routingRule={routingRule}
+                              onEditIconClick={editPartition}
+                              partition={partition}
                               totalRoutingRules={routing.length}
                               isEditMode={isEditMode}
                             />

@@ -6,12 +6,13 @@
  */
 
 import type { CoreStart } from '@kbn/core/public';
-import type { StreamsRepositoryClient } from '@kbn/streams-plugin/public/api';
+import type { APIReturnType, StreamsRepositoryClient } from '@kbn/streams-plugin/public/api';
 import type { Streams } from '@kbn/streams-schema';
 import type { DataPublicPluginStart } from '@kbn/data-plugin/public';
 import type { TimefilterHook } from '@kbn/data-plugin/public/query/timefilter/use_timefilter';
 import type { Condition } from '@kbn/streamlang';
 import type { RoutingDefinition } from '@kbn/streams-schema';
+import type { Observable } from 'rxjs';
 import type { StreamsTelemetryClient } from '../../../../../telemetry/client';
 import type { RoutingDefinitionWithUIAttributes } from '../../types';
 import type { DocumentMatchFilterOptions } from '.';
@@ -32,30 +33,41 @@ export interface StreamRoutingInput {
 }
 
 export interface StreamRoutingContext {
-  currentRuleId: string | null;
+  currentPartitionId: string | null;
   definition: Streams.WiredStream.GetResponse;
   initialRouting: RoutingDefinitionWithUIAttributes[];
   routing: RoutingDefinitionWithUIAttributes[];
-  suggestedRuleId: string | null;
+  suggestedPartitionId: string | null;
+  suggestions: PartitionSuggestion[];
 }
 
 export type StreamRoutingEvent =
   | { type: 'stream.received'; definition: Streams.WiredStream.GetResponse }
-  | { type: 'routingRule.cancel' }
-  | { type: 'routingRule.change'; routingRule: Partial<RoutingDefinitionWithUIAttributes> }
-  | { type: 'routingRule.create' }
-  | { type: 'routingRule.edit'; id: string }
-  | { type: 'routingRule.fork'; routingRule?: RoutingDefinition }
-  | { type: 'routingRule.reorder'; routing: RoutingDefinitionWithUIAttributes[] }
-  | { type: 'routingRule.remove' }
-  | { type: 'routingRule.save' }
+  | { type: 'partition.cancel' }
+  | { type: 'partition.change'; partition: Partial<RoutingDefinitionWithUIAttributes> }
+  | { type: 'partition.create' }
+  | { type: 'partition.edit'; id: string }
+  | { type: 'partition.fork'; partition?: RoutingDefinition }
+  | { type: 'partition.reorder'; routing: RoutingDefinitionWithUIAttributes[] }
+  | { type: 'partition.remove' }
+  | { type: 'partition.save' }
   | { type: 'routingSamples.setDocumentMatchFilter'; filter: DocumentMatchFilterOptions }
   | { type: 'routingSamples.setSelectedPreview'; preview: RoutingSamplesContext['selectedPreview'] }
+  | { type: 'suggestion.generate'; connectorId: string }
+  | { type: 'suggestion.review'; id: string }
+  | { type: 'suggestion.fork'; partition?: RoutingDefinition }
+  | { type: 'suggestion.cancel' }
   | {
       type: 'suggestion.preview';
       condition: Condition;
       name: string;
       index: number;
       toggle?: boolean;
-    }
-  | { type: 'routingRule.reviewSuggested'; id: string };
+    };
+
+type UnwrapObservable<T> = T extends Observable<infer U> ? U : never;
+export type PartitionsSuggestionsResponse = UnwrapObservable<
+  APIReturnType<'POST /internal/streams/{name}/_suggest_partitions'>
+>;
+
+export type PartitionSuggestion = PartitionsSuggestionsResponse['partitions'][number];

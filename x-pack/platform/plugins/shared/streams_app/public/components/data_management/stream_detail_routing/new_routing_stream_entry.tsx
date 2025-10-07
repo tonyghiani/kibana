@@ -8,9 +8,9 @@
 import { EuiFlexGroup, EuiPanel, EuiText } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
 import React, { useEffect, useRef } from 'react';
-import { AddRoutingRuleControls } from './control_bars';
+import { AddPartitionControls } from './control_bars';
 import {
-  selectCurrentRule,
+  selectCurrentPartition,
   useStreamRoutingEvents,
   useStreamsRoutingSelector,
 } from './state_management/stream_routing_state_machine';
@@ -20,8 +20,10 @@ import { StreamNameFormRow } from './stream_name_form_row';
 export function NewRoutingStreamEntry() {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const { changeRule } = useStreamRoutingEvents();
-  const currentRule = useStreamsRoutingSelector((snapshot) => selectCurrentRule(snapshot.context));
+  const { changePartition } = useStreamRoutingEvents();
+  const currentRule = useStreamsRoutingSelector((snapshot) =>
+    selectCurrentPartition(snapshot.context)
+  );
 
   useEffect(() => {
     if (panelRef.current) {
@@ -35,15 +37,15 @@ export function NewRoutingStreamEntry() {
         <EuiFlexGroup gutterSize="m" direction="column">
           <StreamNameFormRow
             value={currentRule.destination}
-            onChange={(value) => changeRule({ destination: value })}
+            onChange={(value) => changePartition({ destination: value })}
             autoFocus
           />
           <EuiFlexGroup gutterSize="s" direction="column">
             <RoutingConditionEditor
               condition={currentRule.where}
               status={currentRule.status}
-              onConditionChange={(cond) => changeRule({ where: cond })}
-              onStatusChange={(status) => changeRule({ status })}
+              onConditionChange={(cond) => changePartition({ where: cond })}
+              onStatusChange={(status) => changePartition({ status })}
             />
             <EuiText size="xs" color="GrayText">
               {i18n.translate('xpack.streams.conditionEditor.filterTip', {
@@ -51,7 +53,7 @@ export function NewRoutingStreamEntry() {
               })}
             </EuiText>
           </EuiFlexGroup>
-          <AddRoutingRuleControls />
+          <AddPartitionControls />
         </EuiFlexGroup>
       </EuiPanel>
     </div>

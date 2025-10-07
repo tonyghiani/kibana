@@ -38,21 +38,21 @@ import { RowSelectionContext } from '../shared/preview_table';
 export function PreviewPanel() {
   const routingSnapshot = useStreamsRoutingSelector((snapshot) => snapshot);
   const { definition } = routingSnapshot.context;
-  const canCreateRoutingRules = routingSnapshot.can({ type: 'routingRule.create' });
+  const canCreateRoutingRules = routingSnapshot.can({ type: 'partition.create' });
   const maxNestingLevel = getSegments(definition.stream.name).length >= MAX_NESTING_LEVEL;
 
   let content;
 
-  if (routingSnapshot.matches({ ready: 'idle' })) {
+  if (routingSnapshot.matches({ ready: { partitions: 'idle' } })) {
     content = <SamplePreviewPanel enableActions={canCreateRoutingRules && !maxNestingLevel} />;
   } else if (
-    routingSnapshot.matches({ ready: 'editingRule' }) ||
-    routingSnapshot.matches({ ready: 'reorderingRules' })
+    routingSnapshot.matches({ ready: { partitions: 'editingPartition' } }) ||
+    routingSnapshot.matches({ ready: { partitions: 'reorderingPartitions' } })
   ) {
     content = <EditingPanel />;
   } else if (
-    routingSnapshot.matches({ ready: 'creatingNewRule' }) ||
-    routingSnapshot.matches({ ready: 'reviewSuggestedRule' })
+    routingSnapshot.matches({ ready: { partitions: 'creatingPartition' } }) ||
+    routingSnapshot.matches({ ready: 'suggestions' })
   ) {
     content = <SamplePreviewPanel enableActions />;
   }
@@ -111,7 +111,7 @@ const EditingPanel = () => (
 
 const SamplePreviewPanel = ({ enableActions }: { enableActions: boolean }) => {
   const samplesSnapshot = useStreamSamplesSelector((snapshot) => snapshot);
-  const { setDocumentMatchFilter, changeRule, createNewRule } = useStreamRoutingEvents();
+  const { setDocumentMatchFilter, changePartition, createPartition } = useStreamRoutingEvents();
   const isLoadingDocuments = samplesSnapshot.matches({ fetching: { documents: 'loading' } });
   const isUpdating =
     samplesSnapshot.matches('debouncingCondition') ||
@@ -134,8 +134,8 @@ const SamplePreviewPanel = ({ enableActions }: { enableActions: boolean }) => {
       return [];
     }
 
-    return buildCellActions(documents, createNewRule, changeRule);
-  }, [enableActions, documents, createNewRule, changeRule]);
+    return buildCellActions(documents, createPartition, changePartition);
+  }, [enableActions, documents, createPartition, changePartition]);
 
   const matchedDocumentPercentage = isNaN(parseFloat(approximateMatchingPercentage ?? ''))
     ? Number.NaN

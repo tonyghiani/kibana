@@ -11,14 +11,14 @@ import type { StringOrNumberOrBoolean } from '@kbn/streamlang';
 import type { FlattenRecord } from '@kbn/streams-schema';
 import React from 'react';
 import {
-  selectCurrentRule,
+  selectCurrentPartition,
   useStreamsRoutingSelector,
 } from '../state_management/stream_routing_state_machine';
 import type { RoutingDefinitionWithUIAttributes } from '../types';
 
 type BtnMode = '+' | '-';
 type FilterOperator = 'eq' | 'neq' | 'exist';
-export type RoutingFilterFn = (routingRule: Partial<RoutingDefinitionWithUIAttributes>) => void;
+export type RoutingFilterFn = (partition: Partial<RoutingDefinitionWithUIAttributes>) => void;
 
 const getOperator = (value: StringOrNumberOrBoolean, mode: BtnMode): FilterOperator => {
   if (typeof value === 'boolean') {
@@ -50,9 +50,11 @@ const FilterBtn = ({
   mode: BtnMode;
 }) => {
   const routingSnapshot = useStreamsRoutingSelector((snapshot) => snapshot);
-  const isRuleActive = routingSnapshot.matches({ ready: { creatingNewRule: 'changing' } });
+  const isRuleActive = routingSnapshot.matches({
+    ready: { partitions: { creatingPartition: 'changing' } },
+  });
 
-  const currentRule = isRuleActive ? selectCurrentRule(routingSnapshot.context) : {};
+  const currentRule = isRuleActive ? selectCurrentPartition(routingSnapshot.context) : {};
 
   const iconType = mode === '+' ? 'plusInCircle' : 'minusInCircle';
   const operator = getOperator(context[rowIndex][columnId] as StringOrNumberOrBoolean, mode);

@@ -8,7 +8,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { createActorContext, useSelector } from '@xstate5/react';
 import { createConsoleInspector } from '@kbn/xstate-utils';
-import { waitFor } from 'xstate5';
 import type { RoutingDefinition } from '@kbn/streams-schema';
 import {
   streamRoutingMachine,
@@ -37,36 +36,34 @@ export const useStreamRoutingEvents = () => {
   return useMemo(
     () => ({
       cancelChanges: () => {
-        service.send({ type: 'routingRule.cancel' });
+        service.send({ type: 'partition.cancel' });
       },
-      changeRule: (routingRule: Partial<RoutingDefinitionWithUIAttributes>) => {
-        service.send({ type: 'routingRule.change', routingRule });
+      changePartition: (partition: Partial<RoutingDefinitionWithUIAttributes>) => {
+        service.send({ type: 'partition.change', partition });
       },
-      createNewRule: () => {
-        service.send({ type: 'routingRule.create' });
+      createPartition: () => {
+        service.send({ type: 'partition.create' });
       },
-      removeRule: async () => {
-        service.send({ type: 'routingRule.remove' });
-        await waitFor(service, (snapshot) => snapshot.matches({ ready: 'idle' }));
+      removePartition: async () => {
+        service.send({ type: 'partition.remove' });
       },
-      reorderRules: (routing: RoutingDefinitionWithUIAttributes[]) => {
-        service.send({ type: 'routingRule.reorder', routing });
+      reorderPartitions: (routing: RoutingDefinitionWithUIAttributes[]) => {
+        service.send({ type: 'partition.reorder', routing });
       },
-      editRule: (id: string) => {
-        service.send({ type: 'routingRule.edit', id });
+      editPartition: (id: string) => {
+        service.send({ type: 'partition.edit', id });
       },
-      forkStream: async (routingRule?: RoutingDefinition) => {
-        service.send({ type: 'routingRule.fork', routingRule });
-        await waitFor(service, (snapshot) => snapshot.matches({ ready: 'idle' }));
+      forkStream: async (partition?: RoutingDefinition) => {
+        service.send({ type: 'partition.fork', partition });
       },
       saveChanges: () => {
-        service.send({ type: 'routingRule.save' });
+        service.send({ type: 'partition.save' });
       },
       setDocumentMatchFilter: (filter: DocumentMatchFilterOptions) => {
         service.send({ type: 'routingSamples.setDocumentMatchFilter', filter });
       },
-      reviewSuggestedRule: (id: string) => {
-        service.send({ type: 'routingRule.reviewSuggested', id });
+      reviewPartitionSuggestion: (id: string) => {
+        service.send({ type: 'suggestion.review', id });
       },
     }),
     [service]
