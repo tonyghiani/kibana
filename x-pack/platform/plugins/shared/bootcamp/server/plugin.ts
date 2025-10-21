@@ -13,11 +13,17 @@ import type {
   PluginInitializerContext,
 } from '@kbn/core/server';
 import type {
+  BootcampServerLibs,
   BootcampServerPluginSetupDeps,
   BootcampServerPluginStartDeps,
   BootcampServerSetup,
   BootcampServerStart,
 } from './types';
+import { registerRoutes } from './routes';
+import { dashboardSavedObject } from './saved_objects/dashboard_saved_object';
+import type { BootcampConfig } from './config';
+import { BOOTCAMP_UI_SETTINGS } from '../common/ui_settings';
+import { registerBootcampFeatures } from './features';
 
 export class BootcampPlugin
   implements
@@ -29,9 +35,11 @@ export class BootcampPlugin
     >
 {
   private readonly logger: Logger;
+  private readonly config: BootcampConfig;
 
   constructor(initContext: PluginInitializerContext) {
     this.logger = initContext.logger.get();
+    this.config = initContext.config.get<BootcampConfig>();
   }
 
   setup(
@@ -40,30 +48,26 @@ export class BootcampPlugin
   ): BootcampServerSetup {
     this.logger.info('Bootcamp plugin setup');
 
-    core.getStartServices().then(([coreStart, pluginsStart, bootcampStart]) => {
-      bootcampStart.bootcampLogService.warn('Bootcamp plugin setup');
-    });
+    core.savedObjects.registerType(dashboardSavedObject);
 
-    const bootcampLogService = {
-      warn: (message: string) => this.logger.warn(message),
-      error: (message: string) => this.logger.error(message),
+    core.uiSettings.register(BOOTCAMP_UI_SETTINGS);
+
+    const libs: BootcampServerLibs = {
+      router: core.http.createRouter(),
+      logger: this.logger,
+      config: this.config,
     };
 
-    return {
-      bootcampLogService,
-    };
+    registerRoutes(libs);
+
+    registerBootcampFeatures(plugins.features);
+
+    return {};
   }
 
   start(core: CoreStart, plugins: BootcampServerPluginStartDeps): BootcampServerStart {
     this.logger.info('Bootcamp plugin start');
 
-    const bootcampLogService = {
-      warn: (message: string) => this.logger.warn(message),
-      error: (message: string) => this.logger.error(message),
-    };
-
-    return {
-      bootcampLogService,
-    };
+    return {};
   }
 }

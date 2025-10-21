@@ -11,7 +11,7 @@
     "browser": true,
     "configPath": ["xpack", "bootcamp"],
     "requiredPlugins": ["spaces"],
-    "optionalPlugins": ["fieldsMetadata"],
+    "optionalPlugins": ["fieldsMetadata", "features"],
     "requiredBundles": []
   }
 }
