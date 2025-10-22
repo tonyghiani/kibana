@@ -5,24 +5,20 @@
  * 2.0.
  */
 
-import type { SpacesPluginSetup, SpacesPluginStart } from '@kbn/spaces-plugin/public';
-import type {
-  FieldsMetadataPublicSetup,
-  FieldsMetadataPublicStart,
-} from '@kbn/fields-metadata-plugin/public';
+import type { SharePluginSetup, SharePluginStart } from '@kbn/share-plugin/public';
+import type { BootcampDashboardService } from './services/dashboard_service';
 
 export interface BootcampPublicPluginSetupDeps {
-  spaces: SpacesPluginSetup;
-  fieldsMetadata?: FieldsMetadataPublicSetup;
+  share: SharePluginSetup;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface BootcampPublicSetup {}
 
 export interface BootcampPublicPluginStartDeps {
-  spaces: SpacesPluginStart;
-  fieldsMetadata?: FieldsMetadataPublicStart;
+  share: SharePluginStart;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface BootcampPublicStart {}
+export interface BootcampPublicStart {
+  dashboardService: BootcampDashboardService;
+}
