@@ -10,6 +10,7 @@ import { inject, injectable } from 'inversify';
 import type { IKibanaResponse, KibanaRequest, KibanaResponseFactory } from '@kbn/core/server';
 import type { RouteSecurity } from '@kbn/core-http-server';
 import { PluginStart } from '@kbn/core-di';
+import { NIGHTSHIFT_API_PRIVILEGES } from '@kbn/nightshift-shared';
 import { Request, Response } from '@kbn/core-di-server';
 import type { SpacesPluginStart } from '@kbn/spaces-plugin/server';
 import type { DetectionEngineEnableBody } from '../../common/service_account';
@@ -26,20 +27,17 @@ const SERVICE_ACCOUNT_ID_MAX_LENGTH = 1024;
 export class EnableServiceAccountRoute extends BaseEngineRoute<DetectionEngineEnableBody> {
   static method = 'post' as const;
   static path = `${SERVICE_ACCOUNT_API_PATH}/_enable`;
-  // Binding is authorized by Elasticsearch against manage_security. Route privileges cannot
-  // express a cluster privilege, so the setup service checks it and the route only needs a user.
+  // The route needs the Nightshift manage privilege. Binding itself is authorized by Elasticsearch
+  // against manage_security, a cluster privilege that route privileges cannot express, so the
+  // setup service checks it as well.
   static security: RouteSecurity = {
-    authz: {
-      enabled: false,
-      reason:
-        'Delegates to Elasticsearch and Core, which require manage_security for workload binding',
-    },
+    authz: { requiredPrivileges: [NIGHTSHIFT_API_PRIVILEGES.manage] },
   };
   static options = {
     access: 'internal' as const,
     summary: 'Set up the detection engine in this space to run as its service account',
     description:
-      'Binds the deployment-wide detection service account to this space. Requires the manage_security cluster privilege and an existing role for the account; the engine never creates the role.',
+      'Binds the deployment-wide detection service account to this space. Requires the Nightshift manage privilege, the manage_security cluster privilege and an existing role for the account; the engine never creates the role.',
   };
   static validate = {
     request: {
