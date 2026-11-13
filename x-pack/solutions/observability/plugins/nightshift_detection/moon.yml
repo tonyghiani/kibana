@@ -29,6 +29,7 @@ dependsOn:
   - '@kbn/licensing-plugin'
   - '@kbn/nightshift-shared'
   - '@kbn/spaces-plugin'
+  - '@kbn/setup-node-env'
 tags:
   - plugin
   - prod
