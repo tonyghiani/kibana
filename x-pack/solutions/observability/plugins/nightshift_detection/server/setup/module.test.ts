@@ -7,21 +7,22 @@
 
 import { Container } from 'inversify';
 import { of } from 'rxjs';
-import { coreMock, loggingSystemMock } from '@kbn/core/server/mocks';
+import { coreMock, httpServerMock, loggingSystemMock } from '@kbn/core/server/mocks';
 import { cloudMock } from '@kbn/cloud-plugin/server/mocks';
 import { licensingMock } from '@kbn/licensing-plugin/server/mocks';
 import { Logger, OnSetup, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
 import { CoreSetup, CoreStart, PluginInitializer } from '@kbn/core-di-server';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
-import { DetectionEngineSystemClient, EngineDataClient } from '../lib/engine/es_client_tokens';
-import { EngineRunner } from '../lib/engine/run_engine';
-import { EnabledSources, RunContext } from '../lib/engine/tokens';
+import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
+import { TickService } from '../lib/engine/tick_service';
 import { DetectionAccountService } from '../lib/service_account/detection_account';
 import { DetectionSetupService } from '../lib/service_account/setup_service';
+import { DetectionWorkflowInstaller } from '../lib/workflows/detection_workflow_installer';
 import { DetectionSignalStore } from '../lib/signals/signal_store';
 import { StateStore } from '../lib/state/state_store';
 import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
+import { InMemoryStateStore } from '../test_utils/in_memory_state_store';
 
 function createContainer({ withCloud }: { withCloud: boolean }) {
   const core = coreMock.createStart();
@@ -42,12 +43,17 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
   if (withCloud) {
     container.bind(PluginSetup('cloud')).toConstantValue(cloudMock.createSetup());
   }
-  // What the `_tick` route binds for each tick.
-  container
-    .bind(RunContext)
-    .toConstantValue({ spaceId: 'default', runId: 'run-1', scheduledMinute: 0 });
-  container.bind(EnabledSources).toConstantValue({ list: async () => [] });
-  container.bind(EngineDataClient).toConstantValue(core.elasticsearch.client.asInternalUser);
+  // What the plugin reads from other plugins and from Core's DI.
+  core.injection.fork.mockImplementation(() => new Container({ parent: container }));
+  container.bind(CoreStart('injection')).toConstantValue(core.injection);
+  container.bind(PluginStart('nightshiftSources')).toConstantValue({
+    getSourcesClient: async () => ({ list: async () => ({ sources: [], total: 0 }) }),
+  });
+  container.bind(PluginStart('workflowsExtensions')).toConstantValue({});
+  container.bind(PluginSetup('workflowsExtensions')).toConstantValue({
+    registerManagedWorkflowOwner: jest.fn(),
+  });
+  container.bind(PluginSetup('workflowsManagement')).toConstantValue({});
   container.load(module);
 
   return { container, core };
@@ -61,11 +67,12 @@ describe('nightshift detection module', () => {
 
     container.get(AvailabilityService);
     container.get(StrategyCatalog);
-    container.get(EngineRunner);
     container.get(DetectionSignalStore);
     container.get(StateStore);
     container.get(DetectionAccountService);
     container.get(DetectionSetupService);
+    container.get(DetectionWorkflowInstaller);
+    container.get(TickService);
     container.getAll(OnSetup);
     // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
     container.getAll(OnStart);
@@ -79,5 +86,23 @@ describe('nightshift detection module', () => {
     const { container } = createContainer({ withCloud: false });
 
     container.get(AvailabilityService);
+  });
+
+  // The runner is bound in a scope forked per tick, which no route test reaches, so this is where a
+  // missing token between the runner and the module shows up.
+  it('runs a tick through a forked scope', async () => {
+    const { container } = createContainer({ withCloud: true });
+    jest.spyOn(container.get(AvailabilityService), 'isAvailable').mockResolvedValue(true);
+    await container.unbind(StateStore);
+    container.bind(StateStore).toConstantValue(new InMemoryStateStore());
+
+    const result = await container.get(TickService).run({
+      accountRequest: httpServerMock.createKibanaRequest(),
+      spaceId: 'default',
+      skipBacklog: false,
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({ status: 'completed', strategies: [] });
   });
 });

@@ -60,6 +60,12 @@ The script finds the account by name (or creates it, and reuses it when it exist
 id. Running it again gives the same id; another space reuses the account. Flags: `--space`,
 `--kibana-url`, `--username`, `--password` (defaults match the local dev stack) and `--serverless`.
 
+Setting a space up also installs and enables its engine workflow, `system-nightshift-detection-engine-<space>`,
+bound to the same account. It runs every minute and calls `POST /internal/nightshift/detection/_tick`
+as the account. A user with `manage_nightshift` can call `_tick` too, and runs as the account;
+`{ "skip_backlog": true }` starts every due strategy at its latest settled step instead of replaying
+what it missed, and reports the minutes it skipped.
+
 `GET /internal/nightshift/detection/service_account` reports the account a space runs as, the role
 it must hold and whether the current user may set the space up.
 
@@ -68,3 +74,16 @@ The account's role must exist, and the engine never creates it:
 - Stateful: create `nightshift_detection` with `ensureNightshiftServiceAccountRoles` from
   `@kbn/nightshift-shared` (tests, evals and local development do).
 - Serverless: the role `_nightshift_detection` is predefined.
+
+## Watching ticks
+
+Each `_tick` answers with its `run_id`, a `status` (`completed`, `busy` when another tick holds the
+space's lease, `unavailable` when the engine is off) and, per strategy, the window it covered, the
+signals it wrote, the minutes it skipped, its notes and its error if it failed. A workflow run that
+shows `busy` is normal while a long tick outlives its minute. The signals are in the hidden data
+stream `.nightshift-detection_engine-detection_signals`, and each strategy's progress in
+`.nightshift-detection_engine-state`. The runs themselves are in the workflow's execution history in
+the Workflows app, under the space.
+
+Turning the plugin off leaves the installed workflow calling a route that answers 404 every minute.
+That is accepted, and there is no cleanup.

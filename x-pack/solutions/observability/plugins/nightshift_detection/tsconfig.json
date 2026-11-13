@@ -17,6 +17,7 @@
     "@kbn/config-schema",
     "@kbn/core",
     "@kbn/core-di",
+    "@kbn/core-di-internal",
     "@kbn/core-di-server",
     "@kbn/core-elasticsearch-server-mocks",
     "@kbn/core-http-server",
@@ -27,8 +28,12 @@
     "@kbn/es-mappings",
     "@kbn/licensing-plugin",
     "@kbn/nightshift-shared",
+    "@kbn/nightshift-sources-plugin",
+    "@kbn/setup-node-env",
     "@kbn/spaces-plugin",
-    "@kbn/zod",
-    "@kbn/setup-node-env"
+    "@kbn/workflows",
+    "@kbn/workflows-extensions",
+    "@kbn/workflows-management-plugin",
+    "@kbn/zod"
   ]
 }
