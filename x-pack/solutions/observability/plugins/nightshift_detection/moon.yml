@@ -22,7 +22,6 @@ dependsOn:
   - '@kbn/config-schema'
   - '@kbn/core'
   - '@kbn/core-di'
-  - '@kbn/core-di-internal'
   - '@kbn/core-di-server'
   - '@kbn/core-elasticsearch-server-mocks'
   - '@kbn/core-http-server'

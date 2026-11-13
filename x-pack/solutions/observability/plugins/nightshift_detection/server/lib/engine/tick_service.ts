@@ -55,8 +55,8 @@ export class TickService {
     const now = Date.now();
     const scope = this.injection.fork();
 
-    // What the runner and its dependencies read from the tick. The runner is bound in the fork
-    // too, so all of its dependencies resolve from here.
+    // What the tick provides to the runner. The runner is bound in the fork too, so its
+    // dependencies resolve from here.
     scope.bind(Request).toConstantValue(accountRequest);
     scope.bind(RunContext).toConstantValue({
       spaceId,
@@ -81,7 +81,7 @@ export class TickService {
         if (total > sources.length) {
           throw new EngineHttpError(
             `The space has ${total} sources, more than the ${MAX_LISTED_SOURCES} the engine reads.`,
-            500
+            400
           );
         }
 
@@ -91,6 +91,10 @@ export class TickService {
 
     scope.bind(EngineRunner).toSelf();
 
-    return scope.get(EngineRunner).run({ now, skipBacklog, abortSignal });
+    try {
+      return await scope.get(EngineRunner).run({ now, skipBacklog, abortSignal });
+    } finally {
+      await scope.unbindAllAsync();
+    }
   }
 }

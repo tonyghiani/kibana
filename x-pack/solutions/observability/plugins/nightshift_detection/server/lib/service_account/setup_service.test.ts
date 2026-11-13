@@ -32,6 +32,7 @@ function createSetup({
   installWorkflow?: () => Promise<void>;
 } = {}) {
   let currentAccountId = boundAccountId;
+  const disableWorkflow = jest.fn(async () => {});
   const bindWorkload = jest.fn(async (_request: unknown, binding: { serviceAccountId: string }) => {
     currentAccountId = binding.serviceAccountId;
     return {};
@@ -75,7 +76,7 @@ function createSetup({
   return {
     service: new DetectionSetupService(
       new DetectionAccountService(security, elasticsearch),
-      { install: installWorkflow },
+      { install: installWorkflow, disable: disableWorkflow },
       security,
       elasticsearch,
       spaces,
@@ -84,6 +85,7 @@ function createSetup({
     ),
     bindWorkload,
     unbindWorkload,
+    disableWorkflow,
     rebind: (serviceAccountId: string) => {
       currentAccountId = serviceAccountId;
     },
@@ -154,8 +156,8 @@ describe('DetectionSetupService.enable', () => {
     expect(bindWorkload).not.toHaveBeenCalled();
   });
 
-  it('puts a space that was never set up back when the workflow install fails', async () => {
-    const { service, unbindWorkload } = createSetup({
+  it('puts a space that was never set up back, workflow off, when the workflow install fails', async () => {
+    const { service, unbindWorkload, disableWorkflow } = createSetup({
       installWorkflow: async () => {
         throw new EngineHttpError('install failed', 500);
       },
@@ -165,6 +167,7 @@ describe('DetectionSetupService.enable', () => {
       service.enable({ request, spaceId: 'default', serviceAccountId: 'account-1' })
     ).rejects.toMatchObject({ statusCode: 500 });
     expect(unbindWorkload).toHaveBeenCalledTimes(1);
+    expect(disableWorkflow).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the new account of a rebound space when the workflow install fails', async () => {

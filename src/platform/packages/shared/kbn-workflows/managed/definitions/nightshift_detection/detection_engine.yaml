@@ -42,7 +42,4 @@ steps:
     with:
       method: POST
       path: "/s/{{ workflow.spaceId }}/internal/nightshift/detection/_tick"
-      headers:
-        kbn-xsrf: "true"
-        Content-Type: application/json
       body: {}
