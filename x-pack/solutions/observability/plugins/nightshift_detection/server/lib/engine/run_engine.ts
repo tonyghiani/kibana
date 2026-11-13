@@ -26,11 +26,21 @@ import type { IStrategyRunResult, TTickResult } from './tick_result';
 import { EnabledSources, RunContext } from './tokens';
 import type { IEnabledSources, IRunContext } from './tokens';
 
-/** Time one tick has for all its generators together. A generator past it is aborted. */
+/**
+ * Time one tick has for all its generators together. A generator past it is aborted. JavaScript
+ * cannot kill one that ignores the signal: it runs on after the tick returns, but the runner
+ * stores nothing from it once the lease has expired.
+ */
 export const RUN_BUDGET_MS = 4 * 60_000;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function assertLeaseHeld(leaseDeadline: number): void {
+  if (Date.now() >= leaseDeadline) {
+    throw new Error('the run lease expired before the result could be stored');
+  }
 }
 
 /** Rejects when the signal aborts, so a generator that ignores its signal cannot hold the run. */
@@ -101,6 +111,8 @@ export class EngineRunner {
       return { run_id: runId, status: 'busy', held_by: attempt.held_by, strategies: [] };
     }
 
+    // The lease deadline on this process's clock, so the check does not depend on `now`.
+    const leaseDeadline = Date.now() + (Date.parse(attempt.held.expires_at) - now);
     const budget = new AbortController();
     const budgetTimer = setTimeout(() => budget.abort('the run budget is spent'), RUN_BUDGET_MS);
     const abortRun = () => budget.abort(abortSignal?.reason ?? 'the run was aborted');
@@ -122,7 +134,9 @@ export class EngineRunner {
       // 4 and 5. Every due strategy runs on its own; one failing does not stop the others.
       const sources = windows.length > 0 ? await this.enabledSources.list() : [];
       const results = await Promise.all(
-        windows.map((window) => this.runStrategy({ window, sources, runSignal: budget.signal }))
+        windows.map((window) =>
+          this.runStrategy({ window, sources, runSignal: budget.signal, leaseDeadline })
+        )
       );
 
       await this.triageAndLifecycle(results);
@@ -153,10 +167,12 @@ export class EngineRunner {
     window,
     sources,
     runSignal,
+    leaseDeadline,
   }: {
     window: IPlannedWindow;
     sources: NightshiftSource[];
     runSignal: AbortSignal;
+    leaseDeadline: number;
   }): Promise<IStrategyRunResult> {
     const { spaceId, scheduledMinute } = this.runContext;
     const { strategy, from, to, skipped_minutes: skippedMinutes } = window;
@@ -216,6 +232,10 @@ export class EngineRunner {
         return [wrapped.signal];
       });
 
+      // A generator that ignores its abort signal can come back after the lease expired, when
+      // another node may be running this space. Nothing is stored or advanced from here.
+      assertLeaseHeld(leaseDeadline);
+
       const { written, failures } = await this.signalStore.write(signals);
       result.signals = written;
 
@@ -231,6 +251,7 @@ export class EngineRunner {
         return result;
       }
 
+      assertLeaseHeld(leaseDeadline);
       await advanceWatermark({ state: this.state, spaceId, strategyId, processedUntil: to });
     } catch (error) {
       result.error = getErrorMessage(error);
