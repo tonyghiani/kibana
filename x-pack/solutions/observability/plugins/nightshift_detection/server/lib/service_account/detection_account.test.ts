@@ -47,12 +47,12 @@ describe('DetectionAccountService', () => {
 
   beforeEach(() => fn.mockClear());
 
-  describe('asAccount', () => {
+  describe('asDetectionEngineAccount', () => {
     it('refuses with 503 when the space is not set up', async () => {
       const { service, withScopedRequestForWorkload } = createService({});
 
       await expect(
-        service.asAccount({
+        service.asDetectionEngineAccount({
           request: httpServerMock.createKibanaRequest(),
           spaceId: SPACE_ID,
           fn,
@@ -71,7 +71,7 @@ describe('DetectionAccountService', () => {
         principal: { type: 'user' },
       });
 
-      await service.asAccount({
+      await service.asDetectionEngineAccount({
         request: httpServerMock.createKibanaRequest(),
         spaceId: SPACE_ID,
         fn,
@@ -90,7 +90,9 @@ describe('DetectionAccountService', () => {
       });
       const request = httpServerMock.createKibanaRequest();
 
-      expect(await service.asAccount({ request, spaceId: SPACE_ID, fn })).toBe(request);
+      expect(await service.asDetectionEngineAccount({ request, spaceId: SPACE_ID, fn })).toBe(
+        request
+      );
       expect(withScopedRequestForWorkload).not.toHaveBeenCalled();
     });
 
@@ -101,7 +103,7 @@ describe('DetectionAccountService', () => {
       });
 
       await expect(
-        service.asAccount({
+        service.asDetectionEngineAccount({
           request: httpServerMock.createKibanaRequest(),
           spaceId: SPACE_ID,
           fn,

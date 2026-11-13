@@ -28,7 +28,11 @@ export class DetectionAccountService {
   }
 
   /** The id of the account the space's detection engine runs as, or `undefined` when not set up. */
-  public async getAccountId({ spaceId }: { spaceId: string }): Promise<string | undefined> {
+  public async getDetectionEngineAccountId({
+    spaceId,
+  }: {
+    spaceId: string;
+  }): Promise<string | undefined> {
     if (!this.isEnabled()) {
       return undefined;
     }
@@ -55,7 +59,7 @@ export class DetectionAccountService {
    * Runs `fn` with a request authenticated as the account bound to the space's detection engine.
    * With `expectedAccountId`, refuses when the space was rebound to another account in between.
    */
-  public withAccount<T>({
+  public withDetectionEngineAccount<T>({
     spaceId,
     expectedAccountId,
     fn,
@@ -82,7 +86,7 @@ export class DetectionAccountService {
    * as it is when it is the space's account, such as a bound workflow run calling back into
    * Kibana, and refused with 403 otherwise: only that account may act for the detection engine.
    */
-  public async asAccount<T>({
+  public async asDetectionEngineAccount<T>({
     request,
     spaceId,
     fn,
@@ -91,7 +95,7 @@ export class DetectionAccountService {
     spaceId: string;
     fn: (accountRequest: KibanaRequest) => Promise<T>;
   }): Promise<T> {
-    const accountId = await this.getAccountId({ spaceId });
+    const accountId = await this.getDetectionEngineAccountId({ spaceId });
 
     if (accountId === undefined) {
       throw createNotSetUpError({ serviceAccountsEnabled: this.isEnabled() });
@@ -100,7 +104,7 @@ export class DetectionAccountService {
     const principal = this.security.authc.getPrincipal(request);
 
     if (principal?.type !== 'service_account') {
-      return this.withAccount({ spaceId, expectedAccountId: accountId, fn });
+      return this.withDetectionEngineAccount({ spaceId, expectedAccountId: accountId, fn });
     }
 
     this.assertIsSpaceAccount({ serviceAccountId: principal.serviceAccountId, accountId });
@@ -126,7 +130,7 @@ export class DetectionAccountService {
       return;
     }
 
-    const accountId = await this.getAccountId({ spaceId });
+    const accountId = await this.getDetectionEngineAccountId({ spaceId });
 
     if (accountId === undefined) {
       throw createNotSetUpError({ serviceAccountsEnabled: this.isEnabled() });
