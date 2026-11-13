@@ -6,4 +6,4 @@
  */
 
 require('@kbn/setup-node-env');
-require('./enable.ts');
+require('./run_enable');
