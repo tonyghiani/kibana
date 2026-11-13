@@ -15,6 +15,7 @@ import { CoreStart } from '@kbn/core-di-server';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
 import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
+import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
 
 function createContainer({ withCloud }: { withCloud: boolean }) {
   const core = coreMock.createStart();
@@ -40,6 +41,7 @@ describe('nightshift detection module', () => {
     const { container, core } = createContainer({ withCloud: true });
 
     container.get(AvailabilityService);
+    container.get(StrategyCatalog);
     // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
     container.getAll(OnStart);
     // D11: engine indices are written as kibana_system, never as the requesting user.

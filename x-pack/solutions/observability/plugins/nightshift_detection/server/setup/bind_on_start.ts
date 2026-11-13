@@ -7,8 +7,11 @@
 
 import { OnStart } from '@kbn/core-di';
 import type { ContainerModuleLoadOptions } from 'inversify';
+import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
 
-/** Start-time work of the plugin. Empty for now: later phases add their initialisation here. */
+/** Start-time work of the plugin: later phases add their initialisation here. */
 export function bindOnStart({ bind }: ContainerModuleLoadOptions): void {
-  bind(OnStart).toConstantValue(async () => {});
+  // Resolving the catalog here makes a duplicate strategy id fail at start rather than at the
+  // first tick.
+  bind(OnStart).toResolvedValue((_catalog: StrategyCatalog) => async () => {}, [StrategyCatalog]);
 }
