@@ -8,10 +8,10 @@
 import { Container } from 'inversify';
 import { of } from 'rxjs';
 import { coreMock, httpServerMock, loggingSystemMock } from '@kbn/core/server/mocks';
-import { cloudMock } from '@kbn/cloud-plugin/server/mocks';
 import { licensingMock } from '@kbn/licensing-plugin/server/mocks';
 import { Logger, OnSetup, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
 import { CoreSetup, CoreStart, PluginInitializer } from '@kbn/core-di-server';
+import { NIGHTSHIFT_DETECTION_TIERED_FEATURES } from '../../common/constants';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
 import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
@@ -24,11 +24,14 @@ import { StateStore } from '../lib/state/state_store';
 import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
 import { InMemoryStateStore } from '../test_utils/in_memory_state_store';
 
-function createContainer({ withCloud }: { withCloud: boolean }) {
+function createContainer() {
   const core = coreMock.createStart();
   core.featureFlags.getBooleanValue$.mockReturnValue(of(true));
+  const coreSetup = coreMock.createSetup();
 
+  // No cloud plugin is bound: the availability service must still resolve (classic deployment).
   const container = new Container({ defaultScope: 'Singleton' });
+  container.bind(CoreSetup('pricing')).toConstantValue(coreSetup.pricing);
   container.bind(CoreStart('elasticsearch')).toConstantValue(core.elasticsearch);
   container.bind(CoreStart('featureFlags')).toConstantValue(core.featureFlags);
   container.bind(Logger).toConstantValue(loggingSystemMock.createLogger());
@@ -40,9 +43,6 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
     .toConstantValue(coreMock.createPluginInitializerContext().env);
   container.bind(PluginStart('spaces')).toConstantValue({});
   container.bind(PluginStart('licensing')).toConstantValue(licensingMock.createStart());
-  if (withCloud) {
-    container.bind(PluginSetup('cloud')).toConstantValue(cloudMock.createSetup());
-  }
   // What the plugin reads from other plugins and from Core's DI.
   core.injection.fork.mockImplementation(() => new Container({ parent: container }));
   container.bind(CoreStart('injection')).toConstantValue(core.injection);
@@ -56,14 +56,14 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
   container.bind(PluginSetup('workflowsManagement')).toConstantValue({});
   container.load(module);
 
-  return { container, core };
+  return { container, core, coreSetup };
 }
 
 describe('module', () => {
-  // A new binding in the module goes in this list, so a missing dependency fails here and not
+  // A new binding in the module goes in this test, so a missing dependency fails here and not
   // at Kibana start.
-  it('resolves every token the module binds', () => {
-    const { container, core } = createContainer({ withCloud: true });
+  it('resolves every token the module binds and registers the pricing feature', () => {
+    const { container, core, coreSetup } = createContainer();
 
     container.get(AvailabilityService);
     container.get(StrategyCatalog);
@@ -73,25 +73,22 @@ describe('module', () => {
     container.get(DetectionSetupService);
     container.get(DetectionWorkflowInstaller);
     container.get(TickService);
-    container.getAll(OnSetup);
-    // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
     container.getAll(OnStart);
-    // D11: engine indices are written as kibana_system, never as the requesting user.
+    container.getAll(OnSetup).forEach((onSetup) => onSetup(container));
+
+    expect(coreSetup.pricing.registerProductFeatures).toHaveBeenCalledWith(
+      NIGHTSHIFT_DETECTION_TIERED_FEATURES
+    );
+    // Engine indices are written as kibana_system, never as the requesting user.
     expect(container.get(DetectionEngineSystemClient)).toBe(
       core.elasticsearch.client.asInternalUser
     );
   });
 
-  it('resolves the availability service when the cloud plugin is disabled', () => {
-    const { container } = createContainer({ withCloud: false });
-
-    container.get(AvailabilityService);
-  });
-
   // The runner is bound in a scope forked per tick, which no route test reaches, so this is where a
   // missing token between the runner and the module shows up.
   it('runs a tick through a forked scope', async () => {
-    const { container } = createContainer({ withCloud: true });
+    const { container } = createContainer();
     jest.spyOn(container.get(AvailabilityService), 'isAvailable').mockResolvedValue(true);
     await container.unbind(StateStore);
     container.bind(StateStore).toConstantValue(new InMemoryStateStore());

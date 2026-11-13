@@ -6,6 +6,7 @@
  */
 
 import { KibanaContainerModule } from '@kbn/core-di';
+import { bindOnSetup } from './setup/bind_on_setup';
 import { bindOnStart } from './setup/bind_on_start';
 import { bindRoutes } from './setup/bind_routes';
 import { bindServiceAccount } from './setup/bind_service_account';
@@ -26,6 +27,7 @@ const pluginModule = new KibanaContainerModule((options) => {
   bindServiceAccount(options);
   bindTick(options);
   bindRoutes(options);
+  bindOnSetup(options);
   bindOnStart(options);
 });
 

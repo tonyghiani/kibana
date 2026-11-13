@@ -13,7 +13,7 @@ import type { CoreDiServiceStart } from '@kbn/core-di';
 import { CoreStart, Request } from '@kbn/core-di-server';
 import type { NightshiftSourcesServerStart } from '@kbn/nightshift-sources-plugin/server';
 import { EngineHttpError } from '../errors/engine_http_error';
-import { EngineDataClient } from './es_client_tokens';
+import { DetectionEngineDataClient } from './es_client_tokens';
 import { EngineRunner } from './run_engine';
 import type { TTickResult } from './tick_result';
 import { EnabledSources, RunContext } from './tokens';
@@ -65,7 +65,7 @@ export class TickService {
     });
     // D11: customer data is read as the account, never as kibana_system.
     scope
-      .bind(EngineDataClient)
+      .bind(DetectionEngineDataClient)
       .toConstantValue(this.elasticsearch.client.asScoped(accountRequest).asCurrentUser);
     scope.bind(EnabledSources).toConstantValue({
       list: async () => {

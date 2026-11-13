@@ -19,7 +19,7 @@ import type { IStateStore } from '../state/state_store';
 import { advanceWatermark, readWatermarks } from '../state/watermarks';
 import { StrategyCatalog } from '../strategies/strategy_catalog';
 import type { GenerateResult } from '../strategies/types';
-import { EngineDataClient } from './es_client_tokens';
+import { DetectionEngineDataClient } from './es_client_tokens';
 import { planWindows } from './plan_windows';
 import type { IPlannedWindow } from './plan_windows';
 import type { IStrategyRunResult, TTickResult } from './tick_result';
@@ -71,7 +71,7 @@ export class EngineRunner {
     @inject(StateStore) private readonly state: IStateStore,
     @inject(DetectionSignalStore) private readonly signalStore: IDetectionSignalStore,
     @inject(EnabledSources) private readonly enabledSources: IEnabledSources,
-    @inject(EngineDataClient) private readonly dataClient: ElasticsearchClient,
+    @inject(DetectionEngineDataClient) private readonly dataClient: ElasticsearchClient,
     @inject(CoreLogger) private readonly logger: Logger
   ) {}
 
