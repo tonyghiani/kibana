@@ -9,7 +9,7 @@ import { Container } from 'inversify';
 import { of } from 'rxjs';
 import { coreMock, httpServerMock, loggingSystemMock } from '@kbn/core/server/mocks';
 import { licensingMock } from '@kbn/licensing-plugin/server/mocks';
-import { Logger, OnSetup, OnStart, PluginStart } from '@kbn/core-di';
+import { Logger, OnSetup, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
 import { CoreSetup, CoreStart, PluginInitializer } from '@kbn/core-di-server';
 import { NIGHTSHIFT_DETECTION_TIERED_FEATURES } from '../../common/constants';
 import { module } from '..';
