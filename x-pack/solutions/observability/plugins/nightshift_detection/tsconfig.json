@@ -7,12 +7,15 @@
   "exclude": ["target/**/*"],
   "kbn_references": [
     "@kbn/cloud-plugin",
+    "@kbn/dev-cli-runner",
     "@kbn/config-schema",
     "@kbn/core",
     "@kbn/core-di",
     "@kbn/core-di-server",
     "@kbn/core-plugins-server",
+    "@kbn/core-http-server",
     "@kbn/licensing-plugin",
-    "@kbn/nightshift-shared"
+    "@kbn/nightshift-shared",
+    "@kbn/spaces-plugin"
   ]
 }

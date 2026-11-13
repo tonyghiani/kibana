@@ -18,13 +18,16 @@ project:
   sourceRoot: x-pack/solutions/observability/plugins/nightshift_detection
 dependsOn:
   - '@kbn/cloud-plugin'
+  - '@kbn/dev-cli-runner'
   - '@kbn/config-schema'
   - '@kbn/core'
   - '@kbn/core-di'
   - '@kbn/core-di-server'
   - '@kbn/core-plugins-server'
+  - '@kbn/core-http-server'
   - '@kbn/licensing-plugin'
   - '@kbn/nightshift-shared'
+  - '@kbn/spaces-plugin'
 tags:
   - plugin
   - prod

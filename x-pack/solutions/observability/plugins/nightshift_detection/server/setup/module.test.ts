@@ -7,14 +7,16 @@
 
 import { Container } from 'inversify';
 import { of } from 'rxjs';
-import { coreMock } from '@kbn/core/server/mocks';
+import { coreMock, loggingSystemMock } from '@kbn/core/server/mocks';
 import { cloudMock } from '@kbn/cloud-plugin/server/mocks';
 import { licensingMock } from '@kbn/licensing-plugin/server/mocks';
-import { OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
-import { CoreStart } from '@kbn/core-di-server';
+import { Logger, OnSetup, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
+import { CoreSetup, CoreStart, PluginInitializer } from '@kbn/core-di-server';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
 import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
+import { DetectionAccountService } from '../lib/service_account/detection_account';
+import { DetectionSetupService } from '../lib/service_account/setup_service';
 
 function createContainer({ withCloud }: { withCloud: boolean }) {
   const core = coreMock.createStart();
@@ -24,6 +26,13 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
   container.bind(CoreStart('elasticsearch')).toConstantValue(core.elasticsearch);
   container.bind(CoreStart('featureFlags')).toConstantValue(core.featureFlags);
   container.bind(CoreStart('pricing')).toConstantValue(core.pricing);
+  container.bind(Logger).toConstantValue(loggingSystemMock.createLogger());
+  container.bind(CoreStart('security')).toConstantValue(core.security);
+  container.bind(CoreSetup('security')).toConstantValue(coreMock.createSetup().security);
+  container
+    .bind(PluginInitializer('env'))
+    .toConstantValue(coreMock.createPluginInitializerContext().env);
+  container.bind(PluginStart('spaces')).toConstantValue({});
   container.bind(PluginStart('licensing')).toConstantValue(licensingMock.createStart());
   if (withCloud) {
     container.bind(PluginSetup('cloud')).toConstantValue(cloudMock.createSetup());
@@ -40,6 +49,9 @@ describe('nightshift detection module', () => {
     const { container, core } = createContainer({ withCloud: true });
 
     container.get(AvailabilityService);
+    container.get(DetectionAccountService);
+    container.get(DetectionSetupService);
+    container.getAll(OnSetup);
     // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
     container.getAll(OnStart);
     // D11: engine indices are written as kibana_system, never as the requesting user.
