@@ -44,3 +44,27 @@ Add to `config/kibana.dev.yml`:
 xpack.nightshiftDetection.enabled: true
 xpack.security.serviceAccounts.enabled: true
 ```
+
+## Setting up a space
+
+The engine runs a space as the deployment's `nightshift_detection` service account. Kibana never
+creates the account: a user with `manage_security` runs the setup, and the server only binds the
+space to the account it is given.
+
+```sh
+node x-pack/solutions/observability/plugins/nightshift_detection/scripts/enable.js --space default
+```
+
+The script finds the account by name (or creates it, and reuses it when it exists), then calls
+`POST /internal/nightshift/detection/service_account/_enable` for the space and prints the account
+id. Running it again gives the same id; another space reuses the account. Flags: `--space`,
+`--kibana-url`, `--username`, `--password` (defaults match the local dev stack) and `--serverless`.
+
+`GET /internal/nightshift/detection/service_account` reports the account a space runs as, the role
+it must hold and whether the current user may set the space up.
+
+The account's role must exist, and the engine never creates it:
+
+- Stateful: create `nightshift_detection` with `ensureNightshiftServiceAccountRoles` from
+  `@kbn/nightshift-shared` (tests, evals and local development do).
+- Serverless: the role `_nightshift_detection` is predefined.

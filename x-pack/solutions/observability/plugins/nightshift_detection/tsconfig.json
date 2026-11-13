@@ -19,12 +19,16 @@
     "@kbn/core-di",
     "@kbn/core-di-server",
     "@kbn/core-elasticsearch-server-mocks",
+    "@kbn/core-http-server",
     "@kbn/core-plugins-server",
     "@kbn/core-test-helpers-kbn-server",
+    "@kbn/dev-cli-runner",
     "@kbn/es-errors",
     "@kbn/es-mappings",
     "@kbn/licensing-plugin",
     "@kbn/nightshift-shared",
-    "@kbn/zod"
+    "@kbn/spaces-plugin",
+    "@kbn/zod",
+    "@kbn/setup-node-env"
   ]
 }
