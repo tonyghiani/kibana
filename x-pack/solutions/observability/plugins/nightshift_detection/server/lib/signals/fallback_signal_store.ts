@@ -8,6 +8,7 @@
 import type { ElasticsearchClient, Logger } from '@kbn/core/server';
 import { Logger as CoreLogger } from '@kbn/core-di';
 import { ALERT_EVENTS_MAPPINGS } from '@kbn/alerting-v2-schemas';
+import { createHash } from 'crypto';
 import { inject, injectable } from 'inversify';
 import {
   DETECTION_SIGNALS_FALLBACK_STREAM,
@@ -23,6 +24,16 @@ const INGEST_PIPELINE_ID = `${DETECTION_SIGNALS_FALLBACK_STREAM}-ingest-timestam
 const BUCKET_START_FIELD = 'signal.bucket_start';
 /** One history read returns at most this many readings; a window is minutes of a few series. */
 const MAX_HISTORY_READINGS = 10_000;
+
+/**
+ * One id per reading: the same series, strategy and bucket always map to the same document, so
+ * writing a window again after a crash conflicts instead of duplicating the signal.
+ */
+function getSignalId(signal: DetectionSignal): string {
+  return createHash('sha256')
+    .update(`${signal.group_hash}:${signal.data.strategy}:${signal.data.bucket_start}`)
+    .digest('hex');
+}
 
 function isAlreadyExistsError(error: unknown): boolean {
   return (
@@ -68,7 +79,10 @@ export class FallbackSignalStore implements IDetectionSignalStore {
     return this.ready;
   }
 
-  /** Writes the signals in one bulk call and reports the ones the stream rejected. */
+  /**
+   * Writes the signals in one bulk call and reports the ones the stream rejected. A signal that
+   * already exists (HTTP 409) was written by an earlier attempt, so it counts as written.
+   */
   public async write(signals: DetectionSignal[]): Promise<IWriteSignalsResult> {
     if (signals.length === 0) {
       return { written: 0, failures: [] };
@@ -77,13 +91,13 @@ export class FallbackSignalStore implements IDetectionSignalStore {
     await this.ensureReady();
     const response = await this.esClient.bulk({
       index: DETECTION_SIGNALS_FALLBACK_STREAM,
-      operations: signals.flatMap((signal) => [{ create: {} }, signal]),
+      operations: signals.flatMap((signal) => [{ create: { _id: getSignalId(signal) } }, signal]),
     });
 
     const failures: IWriteSignalsResult['failures'] = [];
     response.items.forEach((item, index) => {
       const error = item.create?.error;
-      if (error) {
+      if (error && item.create?.status !== 409) {
         failures.push({
           fingerprint: signals[index].data.fingerprint,
           reason: error.reason ?? error.type ?? 'unknown',
