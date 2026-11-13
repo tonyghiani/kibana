@@ -18,6 +18,7 @@
     "@kbn/core",
     "@kbn/core-di",
     "@kbn/core-di-server",
+    "@kbn/core-pricing-common",
     "@kbn/core-plugins-server",
     "@kbn/core-test-helpers-kbn-server",
     "@kbn/licensing-plugin",
