@@ -14,7 +14,10 @@ import { CoreSetup, CoreStart } from '@kbn/core-di-server';
 import { NIGHTSHIFT_DETECTION_TIERED_FEATURES } from '../../common/constants';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
-import { DetectionEngineSystemClient, DetectionEngineDataClient } from '../lib/engine/es_client_tokens';
+import {
+  DetectionEngineSystemClient,
+  DetectionEngineDataClient,
+} from '../lib/engine/es_client_tokens';
 import { EngineRunner } from '../lib/engine/run_engine';
 import { EnabledSources, RunContext } from '../lib/engine/tokens';
 import { DetectionSignalStore } from '../lib/signals/signal_store';
