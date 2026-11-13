@@ -88,13 +88,14 @@ describe('FallbackSignalStore', () => {
     await esServer?.stop().catch(() => {});
   });
 
-  it('writes breached and recovered signals, stamping the time on the way in', async () => {
-    const result = await store.write(
-      wrapAll([
-        createReading({ fingerprint: 'stamped', minute: 0, status: 'breached', value: 5 }),
-        createReading({ fingerprint: 'stamped', minute: 1, status: 'recovered', value: 0 }),
-      ])
-    );
+  it('writes breached and recovered signals once, stamping the time on the way in', async () => {
+    const signals = wrapAll([
+      createReading({ fingerprint: 'stamped', minute: 0, status: 'breached', value: 5 }),
+      createReading({ fingerprint: 'stamped', minute: 1, status: 'recovered', value: 0 }),
+    ]);
+    const result = await store.write(signals);
+    // A window read again after a crash writes the same signals; they must not be stored twice.
+    const rewrite = await store.write(signals);
     await esClient.indices.refresh({ index: DETECTION_SIGNALS_FALLBACK_STREAM });
 
     const stored = await esClient.search<{ '@timestamp'?: string; status: string }>({
@@ -103,6 +104,8 @@ describe('FallbackSignalStore', () => {
     });
 
     expect(result).toEqual({ written: 2, failures: [] });
+    expect(rewrite).toEqual({ written: 2, failures: [] });
+    expect(stored.hits.hits).toHaveLength(2);
     expect(stored.hits.hits.map(({ _source }) => _source?.status).sort()).toEqual([
       'breached',
       'recovered',
