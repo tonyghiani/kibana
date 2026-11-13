@@ -7,6 +7,7 @@
 
 import { KibanaContainerModule } from '@kbn/core-di';
 import { bindEngine } from './setup/bind_engine';
+import { bindOnSetup } from './setup/bind_on_setup';
 import { bindOnStart } from './setup/bind_on_start';
 import { bindServices } from './setup/bind_services';
 import { bindSignals } from './setup/bind_signals';
@@ -22,6 +23,7 @@ const pluginModule = new KibanaContainerModule((options) => {
   bindSignals(options);
   bindStrategies(options);
   bindState(options);
+  bindOnSetup(options);
   bindOnStart(options);
 });
 
