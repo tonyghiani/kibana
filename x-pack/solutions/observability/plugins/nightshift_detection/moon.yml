@@ -24,14 +24,17 @@ dependsOn:
   - '@kbn/core-di'
   - '@kbn/core-di-server'
   - '@kbn/core-plugins-server'
+  - '@kbn/core-test-helpers-kbn-server'
   - '@kbn/licensing-plugin'
   - '@kbn/nightshift-shared'
+  - '@kbn/zod'
 tags:
   - plugin
   - prod
   - group-observability
   - private
   - jest-unit-tests
+  - jest-integration-tests
 fileGroups:
   src:
     - common/**/*
