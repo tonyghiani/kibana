@@ -12,10 +12,12 @@
     "@kbn/core",
     "@kbn/core-di",
     "@kbn/core-di-server",
+    "@kbn/core-pricing-common",
     "@kbn/core-plugins-server",
     "@kbn/core-http-server",
     "@kbn/licensing-plugin",
     "@kbn/nightshift-shared",
-    "@kbn/spaces-plugin"
+    "@kbn/spaces-plugin",
+    "@kbn/setup-node-env"
   ]
 }
