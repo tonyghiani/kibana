@@ -22,18 +22,18 @@ const MINUTE_MS = 60_000;
 
 function createRunner({
   strategies = [createTestStrategy()],
-  available = true,
+  isAvailable = true,
   state = new InMemoryStateStore(),
   signals = new InMemorySignalStore(),
 }: {
   strategies?: IDetectionStrategy[];
-  available?: boolean;
+  isAvailable?: boolean;
   state?: InMemoryStateStore;
   signals?: InMemorySignalStore;
 } = {}) {
   const runner = new EngineRunner(
     { spaceId: SPACE_ID, runId: 'run-1', scheduledMinute: NOW },
-    { isAvailable: async () => available },
+    { isAvailable: async () => isAvailable },
     new StrategyCatalog(strategies),
     state,
     signals,
@@ -129,12 +129,17 @@ describe('EngineRunner', () => {
   });
 
   it('releases the lease when the run is aborted', async () => {
+    let generatorStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      generatorStarted = resolve;
+    });
     const waitsForAbort: IDetectionStrategy = {
       descriptor: { ...createTestStrategy().descriptor, id: 'waits_for_abort' },
       generator: {
         generate: ({ abortSignal }) =>
           new Promise((_resolve, reject) => {
             abortSignal.addEventListener('abort', () => reject(new Error('aborted')));
+            generatorStarted();
           }),
       },
     };
@@ -143,21 +148,24 @@ describe('EngineRunner', () => {
     const controller = new AbortController();
 
     const running = runner.run({ now: NOW, abortSignal: controller.signal });
+    // Abort while the generator is running, as when the request goes away mid-tick.
+    await started;
     controller.abort('the request went away');
     const result = await running;
 
     expect(result).toMatchObject({
-      strategies: [{ id: 'waits_for_abort', error: 'the request went away' }],
+      strategies: [{ id: 'waits_for_abort', error: 'aborted' }],
     });
     expect(await state.get({ spaceId: SPACE_ID, kind: 'lease' })).toBeUndefined();
   });
 
   it('takes no lease while the engine is unavailable', async () => {
-    const { runner, state } = createRunner({ available: false });
+    const { runner, state } = createRunner({ isAvailable: false });
+    const put = jest.spyOn(state, 'put');
 
     const result = await runner.run({ now: NOW });
 
     expect(result).toMatchObject({ status: 'unavailable', strategies: [] });
-    expect(await state.get({ spaceId: SPACE_ID, kind: 'lease' })).toBeUndefined();
+    expect(put).not.toHaveBeenCalled();
   });
 });

@@ -10,17 +10,21 @@ import { Logger as CoreLogger } from '@kbn/core-di';
 import type { NightshiftSource } from '@kbn/nightshift-shared';
 import { inject, injectable } from 'inversify';
 import { AvailabilityService } from '../availability/availability_service';
-import { DetectionSignalStore, type IDetectionSignalStore } from '../signals/signal_store';
+import { DetectionSignalStore } from '../signals/signal_store';
+import type { IDetectionSignalStore } from '../signals/signal_store';
 import { wrapReading } from '../signals/wrap_reading';
 import { acquireRunLease } from '../state/run_lease';
-import { StateStore, type IStateStore } from '../state/state_store';
+import { StateStore } from '../state/state_store';
+import type { IStateStore } from '../state/state_store';
 import { advanceWatermark, readWatermarks } from '../state/watermarks';
 import { StrategyCatalog } from '../strategies/strategy_catalog';
 import type { GenerateResult } from '../strategies/types';
 import { EngineDataClient } from './es_client_tokens';
-import { planWindows, type IPlannedWindow } from './plan_windows';
+import { planWindows } from './plan_windows';
+import type { IPlannedWindow } from './plan_windows';
 import type { IStrategyRunResult, TTickResult } from './tick_result';
-import { EnabledSources, RunContext, type IEnabledSources, type IRunContext } from './tokens';
+import { EnabledSources, RunContext } from './tokens';
+import type { IEnabledSources, IRunContext } from './tokens';
 
 /** Time one tick has for all its generators together. A generator past it is aborted. */
 export const RUN_BUDGET_MS = 4 * 60_000;
@@ -62,9 +66,18 @@ export class EngineRunner {
   ) {}
 
   /**
-   * Runs one tick. Strategies that are not due are left out of the result. A strategy that fails
-   * or runs out of time is reported and keeps its watermark, so the next tick reads its window
-   * again; the others are not affected.
+   * Runs one tick:
+   * 1. Check the engine is available for this deployment.
+   * 2. Take the space's lease, or report who holds it.
+   * 3. Plan a window for every strategy that is due.
+   * 4. Run the due strategies in parallel within the run budget.
+   * 5. Store each strategy's signals and move its watermark when nothing was lost.
+   * 6. Triage and lifecycle (not built yet).
+   * 7. Release the lease.
+   *
+   * Strategies that are not due are left out of the result. A strategy that fails or runs out of
+   * time is reported and keeps its watermark, so the next tick reads its window again; the others
+   * are not affected.
    */
   public async run({
     now,
@@ -112,17 +125,29 @@ export class EngineRunner {
         windows.map((window) => this.runStrategy({ window, sources, runSignal: budget.signal }))
       );
 
-      // 6. Triage and lifecycle: the next phases plug in here, after the signals are stored
-      // (nightshift-program#2080 and #2084). Nothing to do yet.
+      await this.triageAndLifecycle(results);
 
       return { run_id: runId, status: 'completed', strategies: results };
     } finally {
       // 7. Always, so an aborted or failed run does not block the space until the lease expires.
       clearTimeout(budgetTimer);
       abortSignal?.removeEventListener('abort', abortRun);
-      await attempt.held.release();
+      try {
+        await attempt.held.release();
+      } catch (error) {
+        // The lease expires on its own, and throwing here would replace the result of the run.
+        this.logger.warn(
+          `Could not release the run lease of space ${spaceId}: ${getErrorMessage(error)}`
+        );
+      }
     }
   }
+
+  /**
+   * Triage and lifecycle run here, after the signals are stored: nightshift-program#2080 and
+   * #2084 fill this in. Called on every tick so the later phases need no change to the loop.
+   */
+  private async triageAndLifecycle(_results: IStrategyRunResult[]): Promise<void> {}
 
   private async runStrategy({
     window,

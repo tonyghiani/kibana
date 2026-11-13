@@ -22,6 +22,7 @@ export const RunContext = createToken<IRunContext>('nightshiftDetection.RunConte
 
 /** The sources the admin enabled for the tick's space. */
 export interface IEnabledSources {
+  /** The sources enabled in the tick's space. */
   list(): Promise<NightshiftSource[]>;
 }
 

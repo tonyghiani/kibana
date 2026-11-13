@@ -14,7 +14,9 @@ import { Logger, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
 import { CoreStart } from '@kbn/core-di-server';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
-import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
+import { DetectionEngineSystemClient, EngineDataClient } from '../lib/engine/es_client_tokens';
+import { EngineRunner } from '../lib/engine/run_engine';
+import { EnabledSources, RunContext } from '../lib/engine/tokens';
 import { DetectionSignalStore } from '../lib/signals/signal_store';
 import { StateStore } from '../lib/state/state_store';
 import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
@@ -32,6 +34,12 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
   if (withCloud) {
     container.bind(PluginSetup('cloud')).toConstantValue(cloudMock.createSetup());
   }
+  // What the `_tick` route binds for each tick.
+  container
+    .bind(RunContext)
+    .toConstantValue({ spaceId: 'default', runId: 'run-1', scheduledMinute: 0 });
+  container.bind(EnabledSources).toConstantValue({ list: async () => [] });
+  container.bind(EngineDataClient).toConstantValue(core.elasticsearch.client.asInternalUser);
   container.load(module);
 
   return { container, core };
@@ -45,6 +53,7 @@ describe('nightshift detection module', () => {
 
     container.get(AvailabilityService);
     container.get(StrategyCatalog);
+    container.get(EngineRunner);
     container.get(DetectionSignalStore);
     container.get(StateStore);
     // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
