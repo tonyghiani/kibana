@@ -1,0 +1,112 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import type { IDetectionStrategy } from '../strategies/types';
+
+const MINUTE_MS = 60_000;
+
+/** Most minutes one run processes per strategy (a longer cadence processes one cadence). */
+export const MAX_MINUTES_PER_RUN = 10;
+
+/**
+ * A strategy more than this many minutes behind jumps ahead instead of replaying the backlog:
+ * old minutes would only raise stale events.
+ */
+export const MAX_CATCH_UP_MINUTES = 120;
+
+/** The window one strategy processes in a run: `[from, to)` in epoch milliseconds. */
+export interface IPlannedWindow {
+  strategy: IDetectionStrategy;
+  from: number;
+  to: number;
+  /** Minutes jumped over because the strategy was too far behind, or the backlog was skipped. */
+  skipped_minutes: number;
+}
+
+const alignDown = ({ time, stepMs }: { time: number; stepMs: number }) =>
+  Math.floor(time / stepMs) * stepMs;
+const alignUp = ({ time, stepMs }: { time: number; stepMs: number }) =>
+  Math.ceil(time / stepMs) * stepMs;
+
+function planWindow({
+  strategy,
+  watermark,
+  now,
+  skipBacklog,
+}: {
+  strategy: IDetectionStrategy;
+  watermark: number | undefined;
+  now: number;
+  skipBacklog: boolean;
+}): IPlannedWindow | undefined {
+  const { cadence_minutes: cadence, settle_minutes: settle } = strategy.descriptor;
+  const cadenceMs = cadence * MINUTE_MS;
+  const maxRunMs = Math.max(MAX_MINUTES_PER_RUN, cadence) * MINUTE_MS;
+
+  // Only buckets whose data has settled are read, and only whole cadence steps.
+  const settledEnd = alignDown({ time: now - settle * MINUTE_MS, stepMs: cadenceMs });
+
+  if (watermark !== undefined && settledEnd - watermark < cadenceMs) {
+    return undefined;
+  }
+
+  // A strategy that never ran starts one run's worth back, so its first window has data to read.
+  const start = watermark ?? settledEnd - maxRunMs;
+  // The oldest minute a run may start at: the catch-up limit, or the latest cadence step when the
+  // backlog is skipped. The limit never leaves less than one cadence step to run.
+  const latestStep = settledEnd - cadenceMs;
+  const earliest = skipBacklog
+    ? latestStep
+    : Math.min(
+        alignUp({ time: settledEnd - MAX_CATCH_UP_MINUTES * MINUTE_MS, stepMs: cadenceMs }),
+        latestStep
+      );
+  const from = Math.max(start, earliest);
+  const to = alignDown({ time: Math.min(settledEnd, from + maxRunMs), stepMs: cadenceMs });
+
+  if (to <= from) {
+    return undefined;
+  }
+
+  return {
+    strategy,
+    from,
+    to,
+    skipped_minutes:
+      watermark !== undefined && from > watermark ? Math.round((from - watermark) / MINUTE_MS) : 0,
+  };
+}
+
+/**
+ * Plans the window of every strategy that is due. A strategy is due when a whole cadence step has
+ * settled since its watermark; its window starts at the watermark and covers at most one run's
+ * worth of minutes. A strategy that never ran starts one run back; one too far behind jumps to
+ * `MAX_CATCH_UP_MINUTES` back, or with `skipBacklog` to its latest settled cadence step.
+ */
+export function planWindows({
+  strategies,
+  watermarks,
+  now,
+  skipBacklog = false,
+}: {
+  strategies: IDetectionStrategy[];
+  /** Last processed minute per strategy id; a strategy that never ran is absent. */
+  watermarks: Map<string, number>;
+  now: number;
+  skipBacklog?: boolean;
+}): IPlannedWindow[] {
+  return strategies.flatMap((strategy) => {
+    const window = planWindow({
+      strategy,
+      watermark: watermarks.get(strategy.descriptor.id),
+      now,
+      skipBacklog,
+    });
+
+    return window ? [window] : [];
+  });
+}

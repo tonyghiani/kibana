@@ -10,11 +10,13 @@ import { of } from 'rxjs';
 import { coreMock } from '@kbn/core/server/mocks';
 import { cloudMock } from '@kbn/cloud-plugin/server/mocks';
 import { licensingMock } from '@kbn/licensing-plugin/server/mocks';
-import { OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
+import { Logger, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
+import { loggingSystemMock } from '@kbn/core-logging-server-mocks';
 import { CoreStart } from '@kbn/core-di-server';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
 import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
+import { StateStore } from '../lib/state/state_store';
 import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
 
 function createContainer({ withCloud }: { withCloud: boolean }) {
@@ -25,6 +27,7 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
   container.bind(CoreStart('elasticsearch')).toConstantValue(core.elasticsearch);
   container.bind(CoreStart('featureFlags')).toConstantValue(core.featureFlags);
   container.bind(CoreStart('pricing')).toConstantValue(core.pricing);
+  container.bind(Logger).toConstantValue(loggingSystemMock.createLogger());
   container.bind(PluginStart('licensing')).toConstantValue(licensingMock.createStart());
   if (withCloud) {
     container.bind(PluginSetup('cloud')).toConstantValue(cloudMock.createSetup());
@@ -42,6 +45,7 @@ describe('nightshift detection module', () => {
 
     container.get(AvailabilityService);
     container.get(StrategyCatalog);
+    container.get(StateStore);
     // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
     container.getAll(OnStart);
     // D11: engine indices are written as kibana_system, never as the requesting user.
