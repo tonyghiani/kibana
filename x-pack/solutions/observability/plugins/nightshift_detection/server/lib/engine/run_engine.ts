@@ -1,0 +1,219 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import type { ElasticsearchClient, Logger } from '@kbn/core/server';
+import { Logger as CoreLogger } from '@kbn/core-di';
+import type { NightshiftSource } from '@kbn/nightshift-shared';
+import { inject, injectable } from 'inversify';
+import { AvailabilityService } from '../availability/availability_service';
+import { DetectionSignalStore, type IDetectionSignalStore } from '../signals/signal_store';
+import { wrapReading } from '../signals/wrap_reading';
+import { acquireRunLease } from '../state/run_lease';
+import { StateStore, type IStateStore } from '../state/state_store';
+import { advanceWatermark, readWatermarks } from '../state/watermarks';
+import { StrategyCatalog } from '../strategies/strategy_catalog';
+import type { GenerateResult } from '../strategies/types';
+import { EngineDataClient } from './es_client_tokens';
+import { planWindows, type IPlannedWindow } from './plan_windows';
+import type { IStrategyRunResult, TTickResult } from './tick_result';
+import { EnabledSources, RunContext, type IEnabledSources, type IRunContext } from './tokens';
+
+/** Time one tick has for all its generators together. A generator past it is aborted. */
+export const RUN_BUDGET_MS = 4 * 60_000;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Rejects when the signal aborts, so a generator that ignores its signal cannot hold the run. */
+function rejectOnAbort(signal: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const fail = () => reject(new Error(String(signal.reason ?? 'aborted')));
+    if (signal.aborted) {
+      fail();
+      return;
+    }
+    signal.addEventListener('abort', fail, { once: true });
+  });
+}
+
+/**
+ * One tick of the detection engine in one space: takes the space's lease, runs every due
+ * strategy over its window, stores the signals, and moves each strategy's watermark. It knows no
+ * identity: the clients and the tick's context are injected, so the `_tick` route decides who the
+ * tick runs as.
+ */
+@injectable()
+export class EngineRunner {
+  constructor(
+    @inject(RunContext) private readonly runContext: IRunContext,
+    @inject(AvailabilityService)
+    private readonly availability: Pick<AvailabilityService, 'isAvailable'>,
+    @inject(StrategyCatalog) private readonly catalog: StrategyCatalog,
+    @inject(StateStore) private readonly state: IStateStore,
+    @inject(DetectionSignalStore) private readonly signalStore: IDetectionSignalStore,
+    @inject(EnabledSources) private readonly enabledSources: IEnabledSources,
+    @inject(EngineDataClient) private readonly dataClient: ElasticsearchClient,
+    @inject(CoreLogger) private readonly logger: Logger
+  ) {}
+
+  /**
+   * Runs one tick. Strategies that are not due are left out of the result. A strategy that fails
+   * or runs out of time is reported and keeps its watermark, so the next tick reads its window
+   * again; the others are not affected.
+   */
+  public async run({
+    now,
+    skipBacklog = false,
+    abortSignal,
+  }: {
+    now: number;
+    skipBacklog?: boolean;
+    abortSignal?: AbortSignal;
+  }): Promise<TTickResult> {
+    const { runId, spaceId } = this.runContext;
+
+    // 1. Availability: nothing is read or written while the engine is off for this deployment.
+    if (!(await this.availability.isAvailable())) {
+      return { run_id: runId, status: 'unavailable', strategies: [] };
+    }
+
+    // 2. One run per space at a time.
+    const attempt = await acquireRunLease({ state: this.state, spaceId, now });
+    if (!attempt.acquired) {
+      return { run_id: runId, status: 'busy', held_by: attempt.held_by, strategies: [] };
+    }
+
+    const budget = new AbortController();
+    const budgetTimer = setTimeout(() => budget.abort('the run budget is spent'), RUN_BUDGET_MS);
+    const abortRun = () => budget.abort(abortSignal?.reason ?? 'the run was aborted');
+    abortSignal?.addEventListener('abort', abortRun, { once: true });
+    if (abortSignal?.aborted) {
+      abortRun();
+    }
+
+    try {
+      // 3. What is due: watermarks per strategy, then a window per due strategy.
+      const strategies = this.catalog.list();
+      const watermarks = await readWatermarks({
+        state: this.state,
+        spaceId,
+        strategyIds: strategies.map(({ descriptor }) => descriptor.id),
+      });
+      const windows = planWindows({ strategies, watermarks, now, skipBacklog });
+
+      // 4 and 5. Every due strategy runs on its own; one failing does not stop the others.
+      const sources = windows.length > 0 ? await this.enabledSources.list() : [];
+      const results = await Promise.all(
+        windows.map((window) => this.runStrategy({ window, sources, runSignal: budget.signal }))
+      );
+
+      // 6. Triage and lifecycle: the next phases plug in here, after the signals are stored
+      // (nightshift-program#2080 and #2084). Nothing to do yet.
+
+      return { run_id: runId, status: 'completed', strategies: results };
+    } finally {
+      // 7. Always, so an aborted or failed run does not block the space until the lease expires.
+      clearTimeout(budgetTimer);
+      abortSignal?.removeEventListener('abort', abortRun);
+      await attempt.held.release();
+    }
+  }
+
+  private async runStrategy({
+    window,
+    sources,
+    runSignal,
+  }: {
+    window: IPlannedWindow;
+    sources: NightshiftSource[];
+    runSignal: AbortSignal;
+  }): Promise<IStrategyRunResult> {
+    const { spaceId, scheduledMinute } = this.runContext;
+    const { strategy, from, to, skipped_minutes: skippedMinutes } = window;
+    const strategyId = strategy.descriptor.id;
+    const notes: string[] = [];
+    const result: IStrategyRunResult = {
+      id: strategyId,
+      from,
+      to,
+      signals: 0,
+      skipped_minutes: skippedMinutes,
+      notes,
+    };
+
+    // Its own controller, so the strategy can be aborted without touching the others.
+    const controller = new AbortController();
+    const abortStrategy = () => controller.abort(runSignal.reason);
+    runSignal.addEventListener('abort', abortStrategy, { once: true });
+    if (runSignal.aborted) {
+      abortStrategy();
+    }
+
+    try {
+      const generated: GenerateResult = await Promise.race([
+        strategy.generator.generate({
+          spaceId,
+          sources,
+          window: { from, to },
+          esClient: this.dataClient,
+          history: {
+            readHistory: ({ fingerprints, from: historyFrom, to: historyTo }) =>
+              this.signalStore.readHistory({
+                spaceId,
+                strategy: strategyId,
+                fingerprints,
+                from: historyFrom,
+                to: historyTo,
+              }),
+          },
+          abortSignal: controller.signal,
+          logger: this.logger,
+        }),
+        rejectOnAbort(controller.signal),
+      ]);
+      notes.push(...generated.notes);
+      if (generated.truncated) {
+        // The same cap would cut the same window again, so the watermark still moves.
+        notes.push(`${strategyId}: reading stopped at a cap, so the window is partly covered`);
+      }
+
+      const signals = generated.readings.flatMap((reading) => {
+        const wrapped = wrapReading({ reading, strategyId, spaceId, scheduledMinute });
+        if (wrapped.dropped) {
+          notes.push(wrapped.note);
+          return [];
+        }
+        return [wrapped.signal];
+      });
+
+      const { written, failures } = await this.signalStore.write(signals);
+      result.signals = written;
+
+      if (failures.length > 0) {
+        // Reading the window again would write the signals that did go in a second time, but a
+        // lost signal cannot be recovered later.
+        notes.push(
+          ...failures.map(
+            ({ fingerprint, reason }) => `${strategyId}: could not store ${fingerprint}: ${reason}`
+          )
+        );
+        result.error = `${failures.length} signal(s) could not be stored`;
+        return result;
+      }
+
+      await advanceWatermark({ state: this.state, spaceId, strategyId, processedUntil: to });
+    } catch (error) {
+      result.error = getErrorMessage(error);
+      this.logger.warn(`Strategy ${strategyId} failed in space ${spaceId}: ${result.error}`);
+    } finally {
+      runSignal.removeEventListener('abort', abortStrategy);
+    }
+
+    return result;
+  }
+}

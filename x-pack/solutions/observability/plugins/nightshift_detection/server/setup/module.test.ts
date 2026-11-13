@@ -11,19 +11,12 @@ import { coreMock, loggingSystemMock } from '@kbn/core/server/mocks';
 import { cloudMock } from '@kbn/cloud-plugin/server/mocks';
 import { licensingMock } from '@kbn/licensing-plugin/server/mocks';
 import { Logger, OnStart, PluginSetup, PluginStart } from '@kbn/core-di';
-<<<<<<< HEAD
-=======
-import { loggingSystemMock } from '@kbn/core-logging-server-mocks';
->>>>>>> tonyghiani/nightshift-2054-p3-state
 import { CoreStart } from '@kbn/core-di-server';
 import { module } from '..';
 import { AvailabilityService } from '../lib/availability/availability_service';
 import { DetectionEngineSystemClient } from '../lib/engine/es_client_tokens';
-<<<<<<< HEAD
 import { DetectionSignalStore } from '../lib/signals/signal_store';
-=======
 import { StateStore } from '../lib/state/state_store';
->>>>>>> tonyghiani/nightshift-2054-p3-state
 import { StrategyCatalog } from '../lib/strategies/strategy_catalog';
 
 function createContainer({ withCloud }: { withCloud: boolean }) {
@@ -35,7 +28,6 @@ function createContainer({ withCloud }: { withCloud: boolean }) {
   container.bind(CoreStart('featureFlags')).toConstantValue(core.featureFlags);
   container.bind(Logger).toConstantValue(loggingSystemMock.createLogger());
   container.bind(CoreStart('pricing')).toConstantValue(core.pricing);
-  container.bind(Logger).toConstantValue(loggingSystemMock.createLogger());
   container.bind(PluginStart('licensing')).toConstantValue(licensingMock.createStart());
   if (withCloud) {
     container.bind(PluginSetup('cloud')).toConstantValue(cloudMock.createSetup());
@@ -53,11 +45,8 @@ describe('nightshift detection module', () => {
 
     container.get(AvailabilityService);
     container.get(StrategyCatalog);
-<<<<<<< HEAD
     container.get(DetectionSignalStore);
-=======
     container.get(StateStore);
->>>>>>> tonyghiani/nightshift-2054-p3-state
     // The module itself binds an OnStart hook next to the plugin's, so ask for all of them.
     container.getAll(OnStart);
     // D11: engine indices are written as kibana_system, never as the requesting user.

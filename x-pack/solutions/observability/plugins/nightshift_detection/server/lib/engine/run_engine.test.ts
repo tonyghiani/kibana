@@ -1,0 +1,163 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import { loggingSystemMock } from '@kbn/core/server/mocks';
+import { elasticsearchServiceMock } from '@kbn/core-elasticsearch-server-mocks';
+import { acquireRunLease } from '../state/run_lease';
+import { StrategyCatalog } from '../strategies/strategy_catalog';
+import type { IDetectionStrategy } from '../strategies/types';
+import { InMemorySignalStore } from '../../test_utils/in_memory_signal_store';
+import { InMemoryStateStore } from '../../test_utils/in_memory_state_store';
+import { createTestStrategy, TEST_STRATEGY_ID } from '../../test_utils/test_strategy';
+import { EngineRunner } from './run_engine';
+import { readWatermarks } from '../state/watermarks';
+
+const SPACE_ID = 'default';
+const NOW = Date.UTC(2026, 10, 13, 12, 0);
+const MINUTE_MS = 60_000;
+
+function createRunner({
+  strategies = [createTestStrategy()],
+  available = true,
+  state = new InMemoryStateStore(),
+  signals = new InMemorySignalStore(),
+}: {
+  strategies?: IDetectionStrategy[];
+  available?: boolean;
+  state?: InMemoryStateStore;
+  signals?: InMemorySignalStore;
+} = {}) {
+  const runner = new EngineRunner(
+    { spaceId: SPACE_ID, runId: 'run-1', scheduledMinute: NOW },
+    { isAvailable: async () => available },
+    new StrategyCatalog(strategies),
+    state,
+    signals,
+    { list: async () => [] },
+    elasticsearchServiceMock.createElasticsearchClient(),
+    loggingSystemMock.createLogger()
+  );
+
+  return { runner, state, signals };
+}
+
+function createFailingStrategy(): IDetectionStrategy {
+  const { descriptor } = createTestStrategy();
+
+  return {
+    descriptor: { ...descriptor, id: 'failing_strategy' },
+    generator: {
+      generate: async () => {
+        throw new Error('the query failed');
+      },
+    },
+  };
+}
+
+describe('EngineRunner', () => {
+  it('writes the signals of a due strategy and moves its watermark', async () => {
+    const { runner, state, signals } = createRunner();
+
+    const result = await runner.run({ now: NOW });
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      strategies: [{ id: TEST_STRATEGY_ID, signals: 2 }],
+    });
+    expect(signals.written).toHaveLength(2);
+    expect(
+      (await readWatermarks({ state, spaceId: SPACE_ID, strategyIds: [TEST_STRATEGY_ID] })).get(
+        TEST_STRATEGY_ID
+      )
+    ).toBe(NOW);
+  });
+
+  it('keeps the watermark of a failing generator and still runs the others', async () => {
+    const { runner, state, signals } = createRunner({
+      strategies: [createFailingStrategy(), createTestStrategy()],
+    });
+
+    const result = await runner.run({ now: NOW });
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      strategies: [
+        { id: 'failing_strategy', signals: 0, error: 'the query failed' },
+        { id: TEST_STRATEGY_ID, signals: 2 },
+      ],
+    });
+    expect(signals.written).toHaveLength(2);
+    const watermarks = await readWatermarks({
+      state,
+      spaceId: SPACE_ID,
+      strategyIds: ['failing_strategy', TEST_STRATEGY_ID],
+    });
+    expect([...watermarks.keys()]).toEqual([TEST_STRATEGY_ID]);
+  });
+
+  it('keeps the watermark when the store rejects a signal', async () => {
+    const { runner, state } = createRunner({
+      signals: new InMemorySignalStore(['test-series-breached']),
+    });
+
+    const result = await runner.run({ now: NOW });
+
+    expect(result).toMatchObject({
+      strategies: [{ id: TEST_STRATEGY_ID, signals: 1, error: expect.any(String) }],
+    });
+    expect(
+      await readWatermarks({ state, spaceId: SPACE_ID, strategyIds: [TEST_STRATEGY_ID] })
+    ).toEqual(new Map());
+  });
+
+  it('reports busy and writes nothing while another run holds the lease', async () => {
+    const state = new InMemoryStateStore();
+    const held = await acquireRunLease({ state, spaceId: SPACE_ID, now: NOW });
+    const { runner, signals } = createRunner({ state });
+
+    const result = await runner.run({ now: NOW + MINUTE_MS });
+
+    expect(result).toMatchObject({
+      status: 'busy',
+      held_by: held.acquired ? held.held.owner : undefined,
+    });
+    expect(signals.written).toHaveLength(0);
+  });
+
+  it('releases the lease when the run is aborted', async () => {
+    const waitsForAbort: IDetectionStrategy = {
+      descriptor: { ...createTestStrategy().descriptor, id: 'waits_for_abort' },
+      generator: {
+        generate: ({ abortSignal }) =>
+          new Promise((_resolve, reject) => {
+            abortSignal.addEventListener('abort', () => reject(new Error('aborted')));
+          }),
+      },
+    };
+    const state = new InMemoryStateStore();
+    const { runner } = createRunner({ strategies: [waitsForAbort], state });
+    const controller = new AbortController();
+
+    const running = runner.run({ now: NOW, abortSignal: controller.signal });
+    controller.abort('the request went away');
+    const result = await running;
+
+    expect(result).toMatchObject({
+      strategies: [{ id: 'waits_for_abort', error: 'the request went away' }],
+    });
+    expect(await state.get({ spaceId: SPACE_ID, kind: 'lease' })).toBeUndefined();
+  });
+
+  it('takes no lease while the engine is unavailable', async () => {
+    const { runner, state } = createRunner({ available: false });
+
+    const result = await runner.run({ now: NOW });
+
+    expect(result).toMatchObject({ status: 'unavailable', strategies: [] });
+    expect(await state.get({ spaceId: SPACE_ID, kind: 'lease' })).toBeUndefined();
+  });
+});

@@ -18,6 +18,7 @@
     "@kbn/core",
     "@kbn/core-di",
     "@kbn/core-di-server",
+    "@kbn/core-elasticsearch-server-mocks",
     "@kbn/core-logging-server-mocks",
     "@kbn/core-plugins-server",
     "@kbn/core-test-helpers-kbn-server",
