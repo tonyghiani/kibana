@@ -76,7 +76,7 @@ export class DetectionSetupService {
 
     // Bound first, so what the engine does outside workflow runs is tied to the account before
     // any workflow is. Binding again with another account rebinds the space.
-    const previousAccountId = await this.account.getAccountId({ spaceId });
+    const previousAccountId = await this.account.getDetectionEngineAccountId({ spaceId });
     await this.security.serviceAccounts.bindWorkload(request, {
       serviceAccountId,
       workloadType: DETECTION_ENGINE_WORKLOAD_TYPE,
@@ -91,7 +91,7 @@ export class DetectionSetupService {
       // The engine's bound workflow is installed here (added with the tick route).
 
       // A concurrent call for another account may have rebound the space after this one bound it.
-      const currentAccountId = await this.account.getAccountId({ spaceId });
+      const currentAccountId = await this.account.getDetectionEngineAccountId({ spaceId });
 
       if (currentAccountId !== serviceAccountId) {
         throw new EngineHttpError(
@@ -123,7 +123,7 @@ export class DetectionSetupService {
   }): Promise<DetectionEngineServiceAccountStatus> {
     const serviceAccountsEnabled = this.account.isEnabled();
     const [serviceAccountId, canSetUp] = await Promise.all([
-      this.account.getAccountId({ spaceId }),
+      this.account.getDetectionEngineAccountId({ spaceId }),
       // A failing privilege probe must not fail a read: it reads as "cannot set up".
       serviceAccountsEnabled
         ? this.account.canManageSecurity({ request }).catch(() => false)
@@ -188,7 +188,7 @@ export class DetectionSetupService {
     try {
       // A concurrent `enable` may have bound the space since: its binding is not this call's to
       // undo. Bindings have no compare-and-set, so this narrows the race rather than closing it.
-      if ((await this.account.getAccountId({ spaceId })) !== serviceAccountId) {
+      if ((await this.account.getDetectionEngineAccountId({ spaceId })) !== serviceAccountId) {
         return;
       }
 
